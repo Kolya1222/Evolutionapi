@@ -1,16 +1,21 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Templates;
+namespace roilafx\Evolutionapi\Controllers\Templates;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
-use EvolutionCMS\Models\SiteTmplvarContentvalue;
-use EvolutionCMS\Models\SiteTmplvar;
-use EvolutionCMS\Models\SiteContent;
+use roilafx\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Services\Templates\TvValueService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class TvValueController extends ApiController
 {
+    protected $tvValueService;
+
+    public function __construct(TvValueService $tvValueService)
+    {
+        $this->tvValueService = $tvValueService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -22,31 +27,13 @@ class TvValueController extends ApiController
                 'include_tmplvar' => 'nullable|boolean',
             ]);
 
-            $query = SiteTmplvarContentvalue::query();
-
-            // Фильтр по документу
-            if ($request->has('content_id')) {
-                $query->where('contentid', $validated['content_id']);
-            }
-
-            // Фильтр по TV параметру
-            if ($request->has('tmplvar_id')) {
-                $query->where('tmplvarid', $validated['tmplvar_id']);
-            }
-
-            // Сортировка по ID
-            $query->orderBy('id', 'asc');
-
-            // Пагинация
-            $perPage = $validated['per_page'] ?? 20;
-            $paginator = $query->paginate($perPage);
+            $paginator = $this->tvValueService->getAll($validated);
             
             $includeResource = $request->get('include_resource', false);
             $includeTmplvar = $request->get('include_tmplvar', false);
             
-            // Форматируем данные
             $values = collect($paginator->items())->map(function($value) use ($includeResource, $includeTmplvar) {
-                return $this->formatTvValue($value, $includeResource, $includeTmplvar);
+                return $this->tvValueService->formatTvValue($value, $includeResource, $includeTmplvar);
             });
             
             return $this->paginated($values, $paginator, 'TV values retrieved successfully');
@@ -61,13 +48,13 @@ class TvValueController extends ApiController
     public function show($id)
     {
         try {
-            $value = SiteTmplvarContentvalue::with(['resource', 'tmplvar'])->find($id);
+            $value = $this->tvValueService->findById($id);
                 
             if (!$value) {
                 return $this->notFound('TV value not found');
             }
             
-            $formattedValue = $this->formatTvValue($value, true, true);
+            $formattedValue = $this->tvValueService->formatTvValue($value, true, true);
             
             return $this->success($formattedValue, 'TV value retrieved successfully');
             
@@ -85,26 +72,8 @@ class TvValueController extends ApiController
                 'value' => 'required|string',
             ]);
 
-            // Проверяем, не существует ли уже значение для этой пары TV-документ
-            $existingValue = SiteTmplvarContentvalue::where('tmplvarid', $validated['tmplvarid'])
-                ->where('contentid', $validated['contentid'])
-                ->first();
-
-            if ($existingValue) {
-                return $this->error(
-                    'TV value already exists for this document and TV',
-                    ['tv_value' => 'A value already exists for this TV and document combination'],
-                    422
-                );
-            }
-
-            $value = SiteTmplvarContentvalue::create([
-                'tmplvarid' => $validated['tmplvarid'],
-                'contentid' => $validated['contentid'],
-                'value' => $validated['value'],
-            ]);
-
-            $formattedValue = $this->formatTvValue($value->fresh(), true, true);
+            $value = $this->tvValueService->create($validated);
+            $formattedValue = $this->tvValueService->formatTvValue($value, true, true);
             
             return $this->created($formattedValue, 'TV value created successfully');
 
@@ -118,7 +87,7 @@ class TvValueController extends ApiController
     public function update(Request $request, $id)
     {
         try {
-            $value = SiteTmplvarContentvalue::find($id);
+            $value = $this->tvValueService->findById($id);
                 
             if (!$value) {
                 return $this->notFound('TV value not found');
@@ -128,11 +97,8 @@ class TvValueController extends ApiController
                 'value' => 'required|string',
             ]);
 
-            $value->update([
-                'value' => $validated['value'],
-            ]);
-
-            $formattedValue = $this->formatTvValue($value->fresh(), true, true);
+            $updatedValue = $this->tvValueService->update($id, $validated);
+            $formattedValue = $this->tvValueService->formatTvValue($updatedValue, true, true);
             
             return $this->updated($formattedValue, 'TV value updated successfully');
 
@@ -146,13 +112,13 @@ class TvValueController extends ApiController
     public function destroy($id)
     {
         try {
-            $value = SiteTmplvarContentvalue::find($id);
+            $value = $this->tvValueService->findById($id);
                 
             if (!$value) {
                 return $this->notFound('TV value not found');
             }
 
-            $value->delete();
+            $this->tvValueService->delete($id);
 
             return $this->deleted('TV value deleted successfully');
 
@@ -164,21 +130,15 @@ class TvValueController extends ApiController
     public function byDocument($documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
-            $values = SiteTmplvarContentvalue::where('contentid', $documentId)
-                ->with('tmplvar')
-                ->get()
-                ->map(function($value) {
-                    return $this->formatTvValue($value, false, true);
-                });
+            $result = $this->tvValueService->getByDocument($documentId);
+            
+            $values = collect($result['values'])->map(function($value) {
+                return $this->tvValueService->formatTvValue($value, false, true);
+            });
 
             return $this->success([
-                'document_id' => $document->id,
-                'document_title' => $document->pagetitle,
+                'document_id' => $result['document']->id,
+                'document_title' => $result['document']->pagetitle,
                 'tv_values' => $values,
                 'values_count' => $values->count(),
             ], 'Document TV values retrieved successfully');
@@ -191,22 +151,16 @@ class TvValueController extends ApiController
     public function byTmplvar($tmplvarId)
     {
         try {
-            $tmplvar = SiteTmplvar::find($tmplvarId);
-            if (!$tmplvar) {
-                return $this->notFound('TV not found');
-            }
-
-            $values = SiteTmplvarContentvalue::where('tmplvarid', $tmplvarId)
-                ->with('resource')
-                ->get()
-                ->map(function($value) {
-                    return $this->formatTvValue($value, true, false);
-                });
+            $result = $this->tvValueService->getByTmplvar($tmplvarId);
+            
+            $values = collect($result['values'])->map(function($value) {
+                return $this->tvValueService->formatTvValue($value, true, false);
+            });
 
             return $this->success([
-                'tmplvar_id' => $tmplvar->id,
-                'tmplvar_name' => $tmplvar->name,
-                'tmplvar_caption' => $tmplvar->caption,
+                'tmplvar_id' => $result['tmplvar']->id,
+                'tmplvar_name' => $result['tmplvar']->name,
+                'tmplvar_caption' => $result['tmplvar']->caption,
                 'tv_values' => $values,
                 'values_count' => $values->count(),
             ], 'TV values for template variable retrieved successfully');
@@ -219,28 +173,18 @@ class TvValueController extends ApiController
     public function setDocumentTvValue(Request $request, $documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
             $validated = $this->validateRequest($request, [
                 'tmplvarid' => 'required|integer|exists:site_tmplvars,id',
                 'value' => 'required|string',
             ]);
 
-            // Используем updateOrCreate для создания или обновления значения
-            $value = SiteTmplvarContentvalue::updateOrCreate(
-                [
-                    'contentid' => $documentId,
-                    'tmplvarid' => $validated['tmplvarid'],
-                ],
-                [
-                    'value' => $validated['value'],
-                ]
+            $value = $this->tvValueService->setDocumentTvValue(
+                $documentId, 
+                $validated['tmplvarid'], 
+                $validated['value']
             );
 
-            $formattedValue = $this->formatTvValue($value->fresh(), false, true);
+            $formattedValue = $this->tvValueService->formatTvValue($value, false, true);
 
             return $this->success($formattedValue, 'TV value set successfully');
 
@@ -254,50 +198,22 @@ class TvValueController extends ApiController
     public function setMultipleDocumentTvValues(Request $request, $documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
             $validated = $this->validateRequest($request, [
                 'tv_values' => 'required|array',
                 'tv_values.*.tmplvarid' => 'required|integer|exists:site_tmplvars,id',
                 'tv_values.*.value' => 'required|string',
             ]);
 
-            $results = [];
-            $updatedCount = 0;
-            $createdCount = 0;
+            $result = $this->tvValueService->setMultipleDocumentTvValues($documentId, $validated['tv_values']);
 
-            foreach ($validated['tv_values'] as $tvValue) {
-                $value = SiteTmplvarContentvalue::updateOrCreate(
-                    [
-                        'contentid' => $documentId,
-                        'tmplvarid' => $tvValue['tmplvarid'],
-                    ],
-                    [
-                        'value' => $tvValue['value'],
-                    ]
-                );
-
-                if ($value->wasRecentlyCreated) {
-                    $createdCount++;
-                } else {
-                    $updatedCount++;
-                }
-
-                $results[] = $this->formatTvValue($value, false, true);
-            }
+            $formattedValues = collect($result['results'])->map(function($value) {
+                return $this->tvValueService->formatTvValue($value, false, true);
+            });
 
             return $this->success([
-                'document_id' => $document->id,
-                'document_title' => $document->pagetitle,
-                'tv_values' => $results,
-                'summary' => [
-                    'total_processed' => count($results),
-                    'created' => $createdCount,
-                    'updated' => $updatedCount,
-                ],
+                'document_id' => $documentId,
+                'tv_values' => $formattedValues,
+                'summary' => $result['summary'],
             ], 'Multiple TV values set successfully');
 
         } catch (ValidationException $e) {
@@ -310,20 +226,7 @@ class TvValueController extends ApiController
     public function deleteDocumentTvValue($documentId, $tmplvarId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
-            $value = SiteTmplvarContentvalue::where('contentid', $documentId)
-                ->where('tmplvarid', $tmplvarId)
-                ->first();
-
-            if (!$value) {
-                return $this->notFound('TV value not found for this document');
-            }
-
-            $value->delete();
+            $this->tvValueService->deleteDocumentTvValue($documentId, $tmplvarId);
 
             return $this->deleted('TV value deleted successfully');
 
@@ -335,50 +238,15 @@ class TvValueController extends ApiController
     public function clearDocumentTvValues($documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
-            $deletedCount = SiteTmplvarContentvalue::where('contentid', $documentId)->delete();
+            $deletedCount = $this->tvValueService->clearDocumentTvValues($documentId);
 
             return $this->success([
-                'document_id' => $document->id,
-                'document_title' => $document->pagetitle,
+                'document_id' => $documentId,
                 'deleted_count' => $deletedCount,
             ], 'All TV values cleared for document successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to clear TV values for document');
         }
-    }
-
-    protected function formatTvValue($value, $includeResource = false, $includeTmplvar = false)
-    {
-        $data = [
-            'id' => $value->id,
-            'tmplvarid' => $value->tmplvarid,
-            'contentid' => $value->contentid,
-            'value' => $value->value,
-        ];
-
-        if ($includeResource && $value->resource) {
-            $data['resource'] = [
-                'id' => $value->resource->id,
-                'pagetitle' => $value->resource->pagetitle,
-                'alias' => $value->resource->alias,
-            ];
-        }
-
-        if ($includeTmplvar && $value->tmplvar) {
-            $data['tmplvar'] = [
-                'id' => $value->tmplvar->id,
-                'name' => $value->tmplvar->name,
-                'caption' => $value->tmplvar->caption,
-                'type' => $value->tmplvar->type,
-            ];
-        }
-
-        return $data;
     }
 }

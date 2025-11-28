@@ -1,15 +1,21 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Content;
+namespace roilafx\Evolutionapi\Controllers\Content;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
-use EvolutionCMS\Models\DocumentgroupName;
-use EvolutionCMS\Models\SiteContent;
+use roilafx\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Services\Content\DocumentGroupService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class DocumentGroupController extends ApiController
 {
+    protected $documentGroupService;
+
+    public function __construct(DocumentGroupService $documentGroupService)
+    {
+        $this->documentGroupService = $documentGroupService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -22,39 +28,12 @@ class DocumentGroupController extends ApiController
                 'type' => 'nullable|string|in:all,web,manager',
             ]);
 
-            $query = DocumentgroupName::query();
-
-            // Поиск по названию группы
-            if ($request->has('search')) {
-                $searchTerm = $validated['search'];
-                $query->where('name', 'LIKE', "%{$searchTerm}%");
-            }
-
-            // Фильтр по типу группы
-            if ($request->has('type')) {
-                switch ($validated['type']) {
-                    case 'web':
-                        $query->where('private_webgroup', 1);
-                        break;
-                    case 'manager':
-                        $query->where('private_memgroup', 1);
-                        break;
-                }
-            }
-
-            // Сортировка
-            $sortBy = $validated['sort_by'] ?? 'name';
-            $sortOrder = $validated['sort_order'] ?? 'asc';
-            $query->orderBy($sortBy, $sortOrder);
-
-            // Пагинация
-            $perPage = $validated['per_page'] ?? 20;
-            $paginator = $query->paginate($perPage);
+            $paginator = $this->documentGroupService->getAll($validated);
             
             $includeCounts = $request->get('include_counts', false);
             
             $groups = collect($paginator->items())->map(function($group) use ($includeCounts) {
-                return $this->formatDocumentGroup($group, $includeCounts);
+                return $this->documentGroupService->formatGroup($group, $includeCounts);
             });
             
             return $this->paginated($groups, $paginator, 'Document groups retrieved successfully');
@@ -69,13 +48,13 @@ class DocumentGroupController extends ApiController
     public function show($id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
                 
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
             
-            $formattedGroup = $this->formatDocumentGroup($group, true);
+            $formattedGroup = $this->documentGroupService->formatGroup($group, true);
             
             return $this->success($formattedGroup, 'Document group retrieved successfully');
             
@@ -93,15 +72,19 @@ class DocumentGroupController extends ApiController
                 'private_webgroup' => 'nullable|boolean',
             ]);
 
+            // Конвертируем boolean в int для модели
             $groupData = [
                 'name' => $validated['name'],
-                'private_memgroup' => $validated['private_memgroup'] ?? false,
-                'private_webgroup' => $validated['private_webgroup'] ?? false,
+                'private_memgroup' => $validated['private_memgroup'] ?? false ? 1 : 0,
+                'private_webgroup' => $validated['private_webgroup'] ?? false ? 1 : 0,
             ];
 
-            $group = DocumentgroupName::create($groupData);
+            $group = $this->documentGroupService->create($groupData);
             
-            return $this->created($this->formatDocumentGroup($group), 'Document group created successfully');
+            return $this->created(
+                $this->documentGroupService->formatGroup($group), 
+                'Document group created successfully'
+            );
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -113,7 +96,7 @@ class DocumentGroupController extends ApiController
     public function update(Request $request, $id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
                 
             if (!$group) {
                 return $this->notFound('Document group not found');
@@ -125,20 +108,28 @@ class DocumentGroupController extends ApiController
                 'private_webgroup' => 'sometimes|boolean',
             ]);
 
+            // Подготавливаем данные для обновления
             $updateData = [];
             if (isset($validated['name'])) {
                 $updateData['name'] = $validated['name'];
             }
             if (isset($validated['private_memgroup'])) {
-                $updateData['private_memgroup'] = $validated['private_memgroup'];
+                $updateData['private_memgroup'] = $validated['private_memgroup'] ? 1 : 0;
             }
             if (isset($validated['private_webgroup'])) {
-                $updateData['private_webgroup'] = $validated['private_webgroup'];
+                $updateData['private_webgroup'] = $validated['private_webgroup'] ? 1 : 0;
             }
 
-            $group->update($updateData);
+            $updatedGroup = $this->documentGroupService->update($id, $updateData);
 
-            return $this->updated($this->formatDocumentGroup($group->fresh()), 'Document group updated successfully');
+            if (!$updatedGroup) {
+                return $this->notFound('Document group not found');
+            }
+
+            return $this->updated(
+                $this->documentGroupService->formatGroup($updatedGroup), 
+                'Document group updated successfully'
+            );
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -150,26 +141,24 @@ class DocumentGroupController extends ApiController
     public function destroy($id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
                 
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
 
-            // Проверяем, есть ли связанные документы
-            if ($group->documents->count() > 0) {
+            $this->documentGroupService->delete($id);
+
+            return $this->deleted('Document group deleted successfully');
+
+        } catch (\Exception $e) {
+            if ($e->getMessage() === 'Cannot delete document group with associated documents') {
                 return $this->error(
                     'Cannot delete document group with associated documents', 
                     ['group' => 'Document group contains documents. Remove documents first or use force delete.'],
                     422
                 );
             }
-
-            $group->delete();
-
-            return $this->deleted('Document group deleted successfully');
-
-        } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to delete document group');
         }
     }
@@ -177,31 +166,21 @@ class DocumentGroupController extends ApiController
     public function documents($id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
 
-            $documents = $group->documents()
-                ->orderBy('pagetitle', 'asc')
-                ->get()
-                ->map(function($document) {
-                    return [
-                        'id' => $document->id,
-                        'title' => $document->pagetitle,
-                        'alias' => $document->alias,
-                        'parent' => $document->parent,
-                        'published' => (bool)$document->published,
-                        'deleted' => (bool)$document->deleted,
-                        'created_at' => $this->safeFormatDate($document->createdon),
-                        'updated_at' => $this->safeFormatDate($document->editedon),
-                    ];
-                });
+            $documents = $this->documentGroupService->getGroupDocuments($id);
+            
+            $formattedDocuments = collect($documents)->map(function($document) {
+                return $this->documentGroupService->formatDocument($document);
+            });
                 
             return $this->success([
-                'group' => $this->formatDocumentGroup($group),
-                'documents' => $documents,
-                'documents_count' => $documents->count(),
+                'group' => $this->documentGroupService->formatGroup($group),
+                'documents' => $formattedDocuments,
+                'documents_count' => $formattedDocuments->count(),
             ], 'Documents in group retrieved successfully');
             
         } catch (\Exception $e) {
@@ -212,7 +191,7 @@ class DocumentGroupController extends ApiController
     public function attachDocuments(Request $request, $id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
@@ -222,27 +201,22 @@ class DocumentGroupController extends ApiController
                 'document_ids.*' => 'integer|exists:site_content,id',
             ]);
 
-            // Получаем текущие документы в группе
-            $currentDocumentIds = $group->documents->pluck('id')->toArray();
+            $result = $this->documentGroupService->attachDocuments($id, $validated['document_ids']);
             
-            // Фильтруем только новые документы
-            $newDocumentIds = array_diff($validated['document_ids'], $currentDocumentIds);
-            
-            if (empty($newDocumentIds)) {
+            if ($result['added_count'] === 0) {
                 return $this->warning(
-                    $this->formatDocumentGroup($group, true),
+                    $this->documentGroupService->formatGroup($group, true),
                     'No new documents to add',
                     ['documents' => 'All provided documents are already in the group']
                 );
             }
 
-            // Прикрепляем документы к группе
-            $group->documents()->attach($newDocumentIds);
+            $updatedGroup = $this->documentGroupService->findById($id);
 
             return $this->success([
-                'group' => $this->formatDocumentGroup($group->fresh(), true),
-                'added_count' => count($newDocumentIds),
-                'added_documents' => $newDocumentIds,
+                'group' => $this->documentGroupService->formatGroup($updatedGroup, true),
+                'added_count' => $result['added_count'],
+                'added_documents' => $result['added_documents'],
             ], 'Documents attached to group successfully');
 
         } catch (ValidationException $e) {
@@ -255,23 +229,21 @@ class DocumentGroupController extends ApiController
     public function detachDocument($id, $documentId)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
 
-            // Проверяем, существует ли документ в группе
-            $documentInGroup = $group->documents()->where('document', $documentId)->exists();
+            $result = $this->documentGroupService->detachDocument($id, $documentId);
             
-            if (!$documentInGroup) {
+            if (!$result) {
                 return $this->notFound('Document not found in group');
             }
 
-            // Открепляем документ от группы
-            $group->documents()->detach($documentId);
+            $updatedGroup = $this->documentGroupService->findById($id);
 
             return $this->success([
-                'group' => $this->formatDocumentGroup($group->fresh(), true),
+                'group' => $this->documentGroupService->formatGroup($updatedGroup, true),
                 'detached_document_id' => $documentId,
             ], 'Document detached from group successfully');
 
@@ -283,7 +255,7 @@ class DocumentGroupController extends ApiController
     public function syncDocuments(Request $request, $id)
     {
         try {
-            $group = DocumentgroupName::find($id);
+            $group = $this->documentGroupService->findById($id);
             if (!$group) {
                 return $this->notFound('Document group not found');
             }
@@ -293,13 +265,14 @@ class DocumentGroupController extends ApiController
                 'document_ids.*' => 'integer|exists:site_content,id',
             ]);
 
-            // Синхронизируем документы (удаляет старые, добавляет новые)
-            $group->documents()->sync($validated['document_ids']);
+            $result = $this->documentGroupService->syncDocuments($id, $validated['document_ids']);
+
+            $updatedGroup = $this->documentGroupService->findById($id);
 
             return $this->success([
-                'group' => $this->formatDocumentGroup($group->fresh(), true),
-                'synced_documents' => $validated['document_ids'],
-                'documents_count' => count($validated['document_ids']),
+                'group' => $this->documentGroupService->formatGroup($updatedGroup, true),
+                'synced_documents' => $result['synced_documents'],
+                'documents_count' => $result['documents_count'],
             ], 'Documents synced with group successfully');
 
         } catch (ValidationException $e) {
@@ -307,47 +280,5 @@ class DocumentGroupController extends ApiController
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to sync documents with group');
         }
-    }
-
-    protected function formatDocumentGroup($group, $includeCounts = false)
-    {
-        $data = [
-            'id' => $group->id,
-            'name' => $group->name,
-            'private_memgroup' => (bool)$group->private_memgroup,
-            'private_webgroup' => (bool)$group->private_webgroup,
-            'type' => $this->getGroupType($group),
-        ];
-
-        if ($includeCounts) {
-            $data['documents_count'] = $group->documents->count();
-        }
-
-        return $data;
-    }
-
-    protected function getGroupType($group)
-    {
-        if ($group->private_memgroup && $group->private_webgroup) {
-            return 'mixed';
-        } elseif ($group->private_memgroup) {
-            return 'manager';
-        } elseif ($group->private_webgroup) {
-            return 'web';
-        } else {
-            return 'public';
-        }
-    }
-
-    protected function safeFormatDate($dateValue)
-    {
-        if (!$dateValue) return null;
-        if ($dateValue instanceof \Illuminate\Support\Carbon) {
-            return $dateValue->format('Y-m-d H:i:s');
-        }
-        if (is_numeric($dateValue) && $dateValue > 0) {
-            return date('Y-m-d H:i:s', $dateValue);
-        }
-        return null;
     }
 }

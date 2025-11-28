@@ -1,40 +1,26 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Services\Content;
+namespace roilafx\Evolutionapi\Services\Content;
 
-use EvolutionCMS\Evolutionapi\Services\BaseService;
+use roilafx\Evolutionapi\Services\BaseService;
 use EvolutionCMS\Models\SiteContent;
-use EvolutionCMS\Models\SiteTmplvarContentvalue;
-use EvolutionCMS\Legacy\Permissions;
+use EvolutionCMS\Models\SiteTmplvar;
 use Exception;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Artisan;
 
 class DocumentService extends BaseService
 {
     /**
-     * Проверка прав через Evolution CMS
-     * ДОЛЖЕН БЫТЬ PROTECTED для совместимости с BaseService
-     */
-    protected function hasPermission(string $permission): bool
-    {
-        return $this->core->hasPermission($permission);
-    }
-
-    /**
-     * Публикация документов - на основе core/src/Controllers/RefreshSite.php
+     * Публикация документов - используем готовые scope'ы из модели
      */
     public function publishDocuments(): array
     {
-        $this->checkPermission('publish_document');
-
         $time = $this->core->timestamp();
-        $query = SiteContent::publishDocuments($time);
-        $count = $query->count();
         
-        $query->update([
-            'published' => 1, 
-            'pub_date' => 0
-        ]);
+        // Используем встроенный scope и массовое обновление
+        $count = SiteContent::publishDocuments($time)
+            ->update(['published' => 1, 'pub_date' => 0]);
         
         $this->core->clearCache('full');
         
@@ -45,20 +31,14 @@ class DocumentService extends BaseService
     }
 
     /**
-     * Снятие с публикации - на основе core/src/Controllers/RefreshSite.php
+     * Снятие с публикации - используем готовые scope'ы из модели
      */
     public function unpublishDocuments(): array
     {
-        $this->checkPermission('publish_document');
-
         $time = $this->core->timestamp();
-        $query = SiteContent::unPublishDocuments($time);
-        $count = $query->count();
         
-        $query->update([
-            'published' => 0, 
-            'unpub_date' => 0
-        ]);
+        $count = SiteContent::unPublishDocuments($time)
+            ->update(['published' => 0, 'unpub_date' => 0]);
         
         $this->core->clearCache('full');
         
@@ -69,339 +49,50 @@ class DocumentService extends BaseService
     }
 
     /**
-     * Поиск документов - на основе core/src/Controllers/Search.php
-     */
-    public function search(array $filters = []): Collection
-    {
-        $this->checkPermission('view_document');
-
-        $query = SiteContent::query()->withTrashed();
-
-        // Применяем фильтры как в Evolution CMS Search
-        if (!empty($filters['search'])) {
-            $this->applySearchFilter($query, $filters['search']);
-        }
-
-        if (!empty($filters['template'])) {
-            $query->where('template', $filters['template']);
-        }
-
-        if (!empty($filters['parent'])) {
-            $query->where('parent', $filters['parent']);
-        }
-
-        // Применяем права доступа как в Evolution CMS
-        $this->applyPermissionFilters($query);
-
-        return $query->get()->map(function($document) {
-            return $this->formatDocumentForSearch($document);
-        });
-    }
-
-    /**
-     * Применяем условия поиска как в Evolution CMS
-     */
-    private function applySearchFilter($query, string $searchTerm): void
-    {
-        $query->where(function($q) use ($searchTerm) {
-            $q->where('pagetitle', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('longtitle', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('description', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('content', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('introtext', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('alias', 'LIKE', "%{$searchTerm}%");
-        });
-    }
-
-    /**
-     * Применяем фильтры прав доступа как в Evolution CMS
-     */
-    private function applyPermissionFilters($query): void
-    {
-        if ($this->core->getConfig('use_udperms')) {
-            $mgrRole = $_SESSION['mgrRole'] ?? 0;
-            
-            if ($mgrRole != 1) {
-                if (isset($_SESSION['mgrDocgroups']) && is_array($_SESSION['mgrDocgroups'])) {
-                    $query->leftJoin('document_groups', 'site_content.id', '=', 'document_groups.document')
-                        ->where(function ($q) {
-                            $q->where('privatemgr', 0)
-                              ->orWhereIn('document_group', $_SESSION['mgrDocgroups']);
-                        });
-                } else {
-                    $query->where('privatemgr', 0);
-                }
-            }
-        }
-    }
-
-    /**
-     * Обновление дерева документов - на основе core/src/Controllers/UpdateTree.php
+     * Обновление дерева - используем встроенную логику модели
      */
     public function updateTree(): array
     {
-        $this->checkPermission('edit_document');
-
         $start = microtime(true);
-        
-        // Очищаем таблицу замыканий как в Evolution CMS
-        \EvolutionCMS\Models\ClosureTable::query()->truncate();
-        
-        // Рекурсивно строим дерево как в Evolution CMS
-        $result = SiteContent::query()->where('parent', 0)->get();
-        $processed = 0;
-        
-        while($result->count() > 0) {
-            $parents = [];
-            foreach ($result as $item) {
-                $descendant = $item->getKey();
-                $ancestor = $item->parent ?: $descendant;
-                
-                $closure = new \EvolutionCMS\Models\ClosureTable();
-                $closure->insertNode($ancestor, $descendant);
-                $parents[] = $descendant;
-                $processed++;
-            }
-            $result = SiteContent::query()->whereIn('parent', $parents)->get();
-        }
+
+        Artisan::call('evolution:update-tree');
         
         $executionTime = round((microtime(true) - $start), 2);
         
         return [
             'execution_time' => $executionTime,
-            'total_documents' => SiteContent::query()->count(),
-            'processed_documents' => $processed
+            'total_documents' => SiteContent::count(),
+            'message' => 'Tree structure updated successfully'
         ];
     }
 
     /**
-     * Получение документа с проверкой прав - на основе core/src/Controllers/MoveDocument.php
-     */
-    public function getDocument(int $id): SiteContent
-    {
-        $document = SiteContent::withTrashed()->find($id);
-        
-        if (!$document) {
-            throw new Exception('Document not found');
-        }
-
-        // Проверяем права как в Evolution CMS
-        $this->checkDocumentPermission($document, 'view_document');
-
-        return $document;
-    }
-
-    /**
-     * Создание документа - на основе анализа использования в Evolution CMS
-     */
-    public function createDocument(array $data): SiteContent
-    {
-        $this->checkPermission('new_document');
-
-        $currentTimestamp = time();
-
-        // Подготовка данных как в Evolution CMS
-        $documentData = [
-            'pagetitle' => $data['pagetitle'],
-            'parent' => $data['parent'],
-            'template' => $data['template'],
-            'content' => $data['content'] ?? '',
-            'alias' => $data['alias'] ?? '',
-            'menuindex' => $data['menuindex'] ?? 0,
-            'published' => $data['published'] ?? false,
-            'isfolder' => $data['isfolder'] ?? false,
-            'type' => $data['type'] ?? 'document',
-            'contentType' => $data['contentType'] ?? 'text/html',
-            'description' => $data['description'] ?? '',
-            'longtitle' => $data['longtitle'] ?? '',
-            'introtext' => $data['introtext'] ?? '',
-            'richtext' => $data['richtext'] ?? true,
-            'searchable' => $data['searchable'] ?? true,
-            'cacheable' => $data['cacheable'] ?? true,
-            'hidemenu' => $data['hidemenu'] ?? false,
-            'createdon' => $currentTimestamp,
-            'editedon' => $currentTimestamp,
-            'createdby' => $this->core->getLoginUserID('mgr'),
-        ];
-
-        $document = SiteContent::create($documentData);
-
-        // Вызываем события как в Evolution CMS
-        $this->invokeEvent('OnDocFormSave', [
-            'mode' => 'new',
-            'id' => $document->id
-        ]);
-
-        return $document;
-    }
-
-    /**
-     * Обновление документа - на основе анализа использования в Evolution CMS
-     */
-    public function updateDocument(int $id, array $data): SiteContent
-    {
-        $document = $this->getDocument($id);
-        $this->checkDocumentPermission($document, 'save_document');
-
-        $updateData = [];
-        $allowedFields = [
-            'pagetitle', 'parent', 'template', 'content', 'alias', 'menuindex',
-            'published', 'isfolder', 'type', 'contentType', 'description',
-            'longtitle', 'introtext', 'richtext', 'searchable', 'cacheable', 'hidemenu'
-        ];
-
-        foreach ($allowedFields as $field) {
-            if (array_key_exists($field, $data)) {
-                $updateData[$field] = $data[$field];
-            }
-        }
-
-        $updateData['editedon'] = time();
-        $updateData['editedby'] = $this->core->getLoginUserID('mgr');
-
-        // Обновляем publishedon если статус публикации изменился
-        if (isset($data['published']) && $data['published'] && !$document->publishedon) {
-            $updateData['publishedon'] = time();
-        }
-
-        $document->update($updateData);
-
-        // Вызываем события как в Evolution CMS
-        $this->invokeEvent('OnDocFormSave', [
-            'mode' => 'upd',
-            'id' => $document->id
-        ]);
-
-        $this->core->clearCache('full');
-
-        return $document->fresh();
-    }
-
-    /**
-     * Удаление документа (мягкое) - на основе анализа использования в Evolution CMS
-     */
-    public function deleteDocument(int $id): bool
-    {
-        $document = $this->getDocument($id);
-        $this->checkDocumentPermission($document, 'delete_document');
-
-        $document->update([
-            'deleted' => 1,
-            'deletedon' => time(),
-            'deletedby' => $this->core->getLoginUserID('mgr'),
-            'editedon' => time(),
-        ]);
-
-        $this->invokeEvent('OnBeforeEmptyTrash', [
-            'ids' => [$id]
-        ]);
-
-        $this->core->clearCache('full');
-
-        return true;
-    }
-
-    /**
-     * Восстановление документа - на основе анализа использования в Evolution CMS
-     */
-    public function restoreDocument(int $id): SiteContent
-    {
-        $document = SiteContent::withTrashed()
-            ->where('id', $id)
-            ->where('deleted', 1)
-            ->first();
-
-        if (!$document) {
-            throw new Exception('Document not found or not deleted');
-        }
-
-        $this->checkDocumentPermission($document, 'delete_document');
-
-        $document->update([
-            'deleted' => 0,
-            'deletedon' => 0,
-            'deletedby' => 0,
-            'editedon' => time(),
-        ]);
-
-        $this->core->clearCache('full');
-
-        return $document->fresh();
-    }
-
-    /**
-     * Проверка прав на конкретный документ - на основе core/src/Legacy/Permissions.php
-     */
-    private function checkDocumentPermission(SiteContent $document, string $permission): void
-    {
-        // Используем checkPermission из BaseService вместо дублирования
-        $this->checkPermission($permission);
-
-        // Дополнительная проверка прав на конкретный документ
-        if ($this->core->getConfig('use_udperms')) {
-            $udperms = new Permissions();
-            $udperms->user = $this->core->getLoginUserID('mgr');
-            $udperms->document = $document->id;
-            $udperms->role = $_SESSION['mgrRole'] ?? 0;
-
-            if (!$udperms->checkPermissions()) {
-                throw new Exception('Access denied to document');
-            }
-        }
-    }
-
-    /**
-     * Форматирование документа для поиска - на основе Evolution CMS
-     */
-    private function formatDocumentForSearch(SiteContent $document): array
-    {
-        return [
-            'id' => $document->id,
-            'pagetitle' => $document->pagetitle,
-            'longtitle' => $document->longtitle,
-            'description' => $document->description,
-            'alias' => $document->alias,
-            'published' => (bool)$document->published,
-            'deleted' => (bool)$document->deleted,
-            'isfolder' => (bool)$document->isfolder,
-            'template' => $document->template,
-            'menuindex' => $document->menuindex,
-            'createdon' => $this->safeFormatDate($document->createdon),
-            'editedon' => $this->safeFormatDate($document->editedon),
-        ];
-    }
-
-    /**
-     * Перемещение документа (добавляем недостающий метод)
+     * Перемещение документа - используем встроенные методы модели
      */
     public function move(int $documentId, int $newParentId): SiteContent
     {
-        $this->checkPermission('save_document');
+        $document = $this->getDocument($documentId);
 
-        // Валидация
-        if ($documentId === $newParentId) {
+        // Проверка блокировки через встроенное свойство модели
+        //if ($document->isAlreadyEdit) {
+        //    throw new Exception(
+        //        "Document is currently being edited by: " . 
+        //        ($document->alreadyEditInfo['username'] ?? 'another user')
+        //    );
+        //}
+
+        // Используем встроенные проверки модели
+        if ($document->getKey() === $newParentId) {
             throw new Exception('Cannot move document to itself');
         }
 
-        if ($documentId <= 0 || $newParentId < 0) {
-            throw new Exception('Invalid document or parent ID');
-        }
-
-        $document = $this->getDocument($documentId);
-
-        // Проверка на перемещение в дочерний документ
-        $parents = $this->core->getParentIds($newParentId);
-        if (in_array($document->getKey(), $parents, true)) {
+        // Проверка на перемещение в дочерний документ через встроенные методы
+        if ($document->getDescendants()->contains('id', $newParentId)) {
             throw new Exception('Cannot move document to its child');
         }
 
-        // Проверка прав на новый родительский документ
-        if ($this->core->getConfig('use_udperms') && $document->parent !== $newParentId) {
-            $this->checkNewParentPermission($newParentId);
-        }
-
         // Событие перед перемещением
-        $evtOut = $this->invokeEvent('OnBeforeMoveDocument', [
+        $evtOut = $this->core->invokeEvent('OnBeforeMoveDocument', [
             'id' => $document->getKey(),
             'old_parent' => $document->parent,
             'new_parent' => $newParentId
@@ -416,71 +107,375 @@ class DocumentService extends BaseService
             }
         }
 
-        // Логика перемещения
-        if ($newParentId > 0) {
-            $parentDocument = $this->getDocument($newParentId);
-            
-            if ($parentDocument->deleted) {
-                throw new Exception('Parent document is deleted');
-            }
-
-            $children = $this->getAllChildren($document->getKey());
-            if (in_array($parentDocument->getKey(), $children, true)) {
-                throw new Exception('Cannot move a document to a child document');
-            }
-
-            // Устанавливаем isfolder для родителя
-            $parentDocument->isfolder = true;
-            $parentDocument->save();
-
-            // Обновляем isfolder для старого родителя
-            if ($document->ancestor && $document->ancestor->children()->count() <= 1) {
-                $document->ancestor->isfolder = false;
-                $document->ancestor->save();
-            }
-
-            $document->parent = $parentDocument->getKey();
-        } else {
-            $document->parent = 0;
-        }
-
-        $document->save();
+        // Используем встроенный метод перемещения модели
+        $position = $this->getNextPosition($newParentId);
+        $document->moveTo($position, $newParentId);
 
         // Событие после перемещения
-        $this->invokeEvent('OnAfterMoveDocument', [
+        $this->core->invokeEvent('OnAfterMoveDocument', [
             'id' => $document->getKey(),
             'old_parent' => $document->parent,
             'new_parent' => $newParentId
         ]);
 
-        // Очистка кэша
         $this->core->clearCache('full');
-
-        $this->logManagerAction('move_document', $document->getKey(), $document->pagetitle);
 
         return $document->fresh();
     }
 
     /**
-     * Проверка прав на родительский документ
+     * Получение документа с проверкой блокировки
      */
-    private function checkNewParentPermission($id): void
+    public function getDocument(int $id): SiteContent
     {
-        $udperms = new Permissions();
-        $udperms->user = $this->core->getLoginUserID('mgr');
-        $udperms->document = $id;
-        $udperms->role = $_SESSION['mgrRole'];
+        $document = SiteContent::withTrashed()->find($id);
+        
+        if (!$document) {
+            throw new Exception('Document not found');
+        }
 
-        if (!$udperms->checkPermissions()) {
-            throw new Exception('Access denied to parent document');
+        return $document;
+    }
+
+    /**
+     * Создание документа с использованием fillable полей модели
+     */
+    public function createDocument(array $data): SiteContent
+    {
+        // Используем fillable поля из модели
+        $documentData = array_merge([
+            'createdon' => time(),
+            'editedon' => time(),
+            'createdby' => $this->core->getLoginUserID('mgr'),
+            'publishedon' => ($data['published'] ?? true) ? time() : 0,
+        ], $data);
+
+        $document = SiteContent::create($documentData);
+
+        // Сохранение TV параметров через отношения модели
+        if (isset($data['tv']) && is_array($data['tv'])) {
+            $this->saveDocumentTV($document, $data['tv']);
+        }
+
+        $this->core->invokeEvent('OnDocFormSave', [
+            'mode' => 'new',
+            'id' => $document->id
+        ]);
+
+        return $document;
+    }
+
+    /**
+     * Обновление документа с проверкой блокировки
+     */
+    public function updateDocument(int $id, array $data): SiteContent
+    {
+        $document = $this->getDocument($id);
+
+        // Проверка блокировки через встроенное свойство
+        //if ($document->isAlreadyEdit) {
+        //    throw new Exception(
+        //        "Document is currently being edited by: " . 
+        //        ($document->alreadyEditInfo['username'] ?? 'another user')
+        //    );
+        //}
+
+        $updateData = array_merge($data, [
+            'editedon' => time(),
+            'editedby' => $this->core->getLoginUserID('mgr'),
+        ]);
+
+        if (isset($data['published']) && $data['published'] && !$document->publishedon) {
+            $updateData['publishedon'] = time();
+        }
+
+        $document->update($updateData);
+
+        // Обновление TV параметров через отношения
+        if (isset($data['tv']) && is_array($data['tv'])) {
+            $this->saveDocumentTV($document, $data['tv']);
+        }
+
+        $this->core->invokeEvent('OnDocFormSave', [
+            'mode' => 'upd',
+            'id' => $document->id
+        ]);
+
+        $this->core->clearCache('full');
+
+        return $document->fresh();
+    }
+
+    /**
+     * Удаление документа (soft delete)
+     */
+    public function deleteDocument(int $id): bool
+    {
+        $document = $this->getDocument($id);
+
+        // Используем встроенный soft delete модели
+        $document->delete();
+
+        $this->core->invokeEvent('OnBeforeEmptyTrash', [
+            'ids' => [$id]
+        ]);
+
+        $this->core->clearCache('full');
+
+        return true;
+    }
+
+    /**
+     * Восстановление документа
+     */
+    public function restoreDocument(int $id): SiteContent
+    {
+        $document = SiteContent::withTrashed()
+            ->where('id', $id)
+            ->where('deleted', 1)
+            ->first();
+
+        if (!$document) {
+            throw new Exception('Document not found or not deleted');
+        }
+
+        // Используем встроенное восстановление
+        $document->restore();
+
+        $this->core->clearCache('full');
+
+        return $document->fresh();
+    }
+
+    /**
+     * Получение TV параметров документа через встроенное свойство
+     */
+    public function getDocumentTV(int $documentId): array
+    {
+        $document = $this->getDocument($documentId);
+        
+        return $document->templateValues->mapWithKeys(function($tvValue) {
+            $tv = $tvValue->tmplvar;
+            return [
+                $tv->name => [
+                    'value' => $tvValue->value,
+                    'tv_id' => $tv->id, // Теперь будет правильный tv_id
+                ]
+            ];
+        })->toArray();
+    }
+
+    /**
+     * Получение TV параметров с полной информацией
+     */
+    public function getDocumentTVFull(int $documentId): array
+    {
+        $document = $this->getDocument($documentId);
+        
+        return $document->templateValues->map(function($tvValue) {
+            $tv = $tvValue->tmplvar;
+            return [
+                'name' => $tv->name,
+                'value' => $this->processTVValue($tvValue->value, $tv->type),
+                'tv_id' => $tv->id,
+                'caption' => $tv->caption,
+                'description' => $tv->description,
+                'type' => $tv->type,
+                'default_value' => $tv->default_text,
+                'elements' => $tv->elements,
+            ];
+        })->keyBy('name')->toArray();
+    }
+
+    public function getDocumentGroups(int $documentId): array
+    {
+        $document = $this->getDocument($documentId);
+        return $document->documentGroups()->get()->all();
+    }
+
+    public function attachToGroups(int $documentId, array $groupIds): array
+    {
+        $document = $this->getDocument($documentId);
+        $currentGroupIds = $document->documentGroups->pluck('id')->toArray();
+        
+        $newGroupIds = array_diff($groupIds, $currentGroupIds);
+        
+        if (!empty($newGroupIds)) {
+            $document->documentGroups()->attach($newGroupIds);
+        }
+        
+        return [
+            'added_count' => count($newGroupIds),
+            'added_groups' => $newGroupIds
+        ];
+    }
+
+    public function detachFromGroup(int $documentId, int $groupId): bool
+    {
+        $document = $this->getDocument($documentId);
+        return $document->documentGroups()->detach($groupId) > 0;
+    }
+
+    public function syncGroups(int $documentId, array $groupIds): array
+    {
+        $document = $this->getDocument($documentId);
+        $document->documentGroups()->sync($groupIds);
+
+        return [
+            'synced_groups' => $groupIds,
+            'groups_count' => count($groupIds)
+        ];
+    }
+
+    /**
+     * Сохранение TV параметров через отношения модели
+     */
+    public function saveDocumentTV(SiteContent $document, array $tvData): void
+    {
+        foreach ($tvData as $tvName => $tvValue) {
+            $tv = SiteTmplvar::where('name', $tvName)->first();
+            
+            if ($tv) {
+                $processedValue = $this->processTVValueForSave($tvValue, $tv->type);
+                
+                // Используем отношение модели для создания/обновления
+                $document->templateValues()->updateOrCreate(
+                    ['tmplvarid' => $tv->id],
+                    ['value' => $processedValue]
+                );
+            }
         }
     }
 
     /**
-     * Получение всех дочерних документов
+     * Поиск документов с использованием scope'ов модели
      */
-    private function getAllChildren($parentId): array
+    public function searchDocuments(array $filters = []): LengthAwarePaginator
     {
-        return $this->core->getAllChildren($parentId);
+        $query = SiteContent::query();
+        
+        if (isset($filters['published'])) {
+            $query->published();
+        }
+        
+        if (isset($filters['unpublished'])) {
+            $query->unpublished();
+        }
+        
+        if (isset($filters['active'])) {
+            $query->active();
+        }
+        
+        //if (isset($filters['without_protected'])) {
+        //    $query->withoutProtected();
+        //}
+        
+        if (isset($filters['tv'])) {
+            $query->withTVs(array_keys($filters['tv']));
+        }
+        
+        if (isset($filters['tv_filter'])) {
+            $query->tvFilter($filters['tv_filter']);
+        }
+        
+        if (isset($filters['tv_order'])) {
+            $query->tvOrderBy($filters['tv_order']);
+        }
+        
+        $perPage = $filters['per_page'] ?? 20;
+        $page = $filters['page'] ?? 1;
+        
+        return $query->paginate($perPage, ['*'], 'page', $page);
+    }
+
+    /**
+     * Получение дочерних документов через встроенные методы
+     */
+    public function getChildren(int $parentId, array $columns = ['*'])
+    {
+        $parent = $this->getDocument($parentId);
+        return $parent->getChildren($columns);
+    }
+
+    /**
+     * Получение предков документа
+     */
+    public function getAncestors(int $documentId)
+    {
+        $document = $this->getDocument($documentId);
+        return $document->getAncestors();
+    }
+
+    /**
+     * Получение потомков документа
+     */
+    public function getDescendants(int $documentId)
+    {
+        $document = $this->getDocument($documentId);
+        return $document->getDescendants();
+    }
+
+    /**
+     * Вспомогательные методы
+     */
+    private function getNextPosition(int $parentId): int
+    {
+        return SiteContent::where('parent', $parentId)->count();
+    }
+
+    /**
+     * Обработка TV значений
+     */
+    private function processTVValue($value, $type)
+    {
+        if (empty($value)) return $value;
+
+        if ($type === 'custom_tv:multitv') {
+            return $this->parseMultiTV($value);
+        }
+        
+        if ($type === 'number') {
+            return is_numeric($value) ? (float)$value : $value;
+        }
+        
+        if (in_array($type, ['list', 'list-multiple', 'checkbox', 'radio']) && str_contains($value, '||')) {
+            return explode('||', $value);
+        }
+        
+        if (is_string($value) && $this->isJson($value)) {
+            $decoded = json_decode($value, true);
+            return json_last_error() === JSON_ERROR_NONE ? $decoded : $value;
+        }
+        
+        return $value;
+    }
+
+    private function processTVValueForSave($value, $type)
+    {
+        if ($type === 'custom_tv:multitv' || is_array($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+        
+        if (in_array($type, ['list-multiple', 'checkbox']) && is_array($value)) {
+            return implode('||', $value);
+        }
+        
+        return $value;
+    }
+
+    private function parseMultiTV($value)
+    {
+        if (empty($value)) return [];
+        
+        $data = json_decode($value, true);
+        return $data ?: [];
+    }
+
+    private function isJson($string)
+    {
+        if (!is_string($string)) return false;
+        
+        json_decode($string);
+        return json_last_error() === JSON_ERROR_NONE;
     }
 }

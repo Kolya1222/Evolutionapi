@@ -1,20 +1,22 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Content;
+namespace roilafx\Evolutionapi\Controllers\Content;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Controllers\ApiController;
 use EvolutionCMS\Models\Category;
-use EvolutionCMS\Models\SiteTemplate;
-use EvolutionCMS\Models\SiteHtmlsnippet;
-use EvolutionCMS\Models\SiteSnippet;
-use EvolutionCMS\Models\SitePlugin;
-use EvolutionCMS\Models\SiteModule;
-use EvolutionCMS\Models\SiteTmplvar;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use roilafx\Evolutionapi\Services\Content\CategoryService;
 
 class CategoryController extends ApiController
 {
+    private $categoryService;
+
+    public function __construct(CategoryService $categoryService)
+    {
+        $this->categoryService = $categoryService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -29,13 +31,13 @@ class CategoryController extends ApiController
 
             $query = Category::query();
 
-            // Поиск по названию категории
+            // Поиск по названию категории - как в Evolution CMS
             if ($request->has('search')) {
                 $searchTerm = $validated['search'];
                 $query->where('category', 'LIKE', "%{$searchTerm}%");
             }
 
-            // Сортировка
+            // Сортировка как в Evolution CMS - по умолчанию rank ASC, category ASC
             $sortBy = $validated['sort_by'] ?? 'rank';
             $sortOrder = $validated['sort_order'] ?? 'asc';
             $query->orderBy($sortBy, $sortOrder);
@@ -51,17 +53,7 @@ class CategoryController extends ApiController
                 return $this->formatCategory($category, $includeCounts, $includeElements);
             });
             
-            return $this->success([
-                'data' => $formattedItems,
-                'pagination' => [
-                    'total' => $paginator->total(),
-                    'per_page' => $paginator->perPage(),
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'from' => $paginator->firstItem(),
-                    'to' => $paginator->lastItem()
-                ]
-            ], 'Categories retrieved successfully');
+            return $this->paginated($formattedItems, $paginator, 'Categories retrieved successfully');
             
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -96,12 +88,7 @@ class CategoryController extends ApiController
                 'rank' => 'nullable|integer|min:0',
             ]);
 
-            $categoryData = [
-                'category' => $validated['category'],
-                'rank' => $validated['rank'] ?? 0,
-            ];
-
-            $category = Category::create($categoryData);
+            $category = $this->categoryService->createCategory($validated);
             
             return $this->created($this->formatCategory($category), 'Category created successfully');
 
@@ -126,17 +113,9 @@ class CategoryController extends ApiController
                 'rank' => 'sometimes|integer|min:0',
             ]);
 
-            $updateData = [];
-            if (isset($validated['category'])) {
-                $updateData['category'] = $validated['category'];
-            }
-            if (isset($validated['rank'])) {
-                $updateData['rank'] = $validated['rank'];
-            }
+            $category = $this->categoryService->updateCategory($id, $validated);
 
-            $category->update($updateData);
-
-            return $this->updated($this->formatCategory($category->fresh()), 'Category updated successfully');
+            return $this->updated($this->formatCategory($category), 'Category updated successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -148,23 +127,7 @@ class CategoryController extends ApiController
     public function destroy($id)
     {
         try {
-            $category = Category::find($id);
-                
-            if (!$category) {
-                return $this->notFound('Category not found');
-            }
-
-            // Проверяем, есть ли связанные элементы
-            $hasElements = $this->categoryHasElements($category);
-            if ($hasElements) {
-                return $this->error(
-                    'Cannot delete category with associated elements', 
-                    ['category' => 'Category contains templates, chunks, snippets, plugins, modules or TVs'],
-                    422
-                );
-            }
-
-            $category->delete();
+            $this->categoryService->deleteCategory($id);
 
             return $this->deleted('Category deleted successfully');
 
@@ -198,7 +161,7 @@ class CategoryController extends ApiController
                         'name' => $template->templatename,
                         'description' => $template->description,
                         'locked' => (bool)$template->locked,
-                        'created_at' => $this->safeFormatDate($template->createdon),
+                        'created_at' => $this->categoryService->safeFormatDate($template->createdon),
                     ];
                 });
             }
@@ -210,7 +173,7 @@ class CategoryController extends ApiController
                         'name' => $chunk->name,
                         'description' => $chunk->description,
                         'locked' => (bool)$chunk->locked,
-                        'created_at' => $this->safeFormatDate($chunk->createdon),
+                        'created_at' => $this->categoryService->safeFormatDate($chunk->createdon),
                     ];
                 });
             }
@@ -222,7 +185,7 @@ class CategoryController extends ApiController
                         'name' => $snippet->name,
                         'description' => $snippet->description,
                         'locked' => (bool)$snippet->locked,
-                        'created_at' => $this->safeFormatDate($snippet->createdon),
+                        'created_at' => $this->categoryService->safeFormatDate($snippet->createdon),
                     ];
                 });
             }
@@ -234,7 +197,7 @@ class CategoryController extends ApiController
                         'name' => $plugin->name,
                         'description' => $plugin->description,
                         'locked' => (bool)$plugin->locked,
-                        'created_at' => $this->safeFormatDate($plugin->createdon),
+                        'created_at' => $this->categoryService->safeFormatDate($plugin->createdon),
                     ];
                 });
             }
@@ -246,7 +209,7 @@ class CategoryController extends ApiController
                         'name' => $module->name,
                         'description' => $module->description,
                         'locked' => (bool)$module->locked,
-                        'created_at' => $this->safeFormatDate($module->createdon),
+                        'created_at' => $this->categoryService->safeFormatDate($module->createdon),
                     ];
                 });
             }
@@ -277,53 +240,19 @@ class CategoryController extends ApiController
     public function moveElements(Request $request, $id)
     {
         try {
-            $category = Category::find($id);
-            if (!$category) {
-                return $this->notFound('Category not found');
-            }
-
             $validated = $this->validateRequest($request, [
                 'target_category_id' => 'required|integer|exists:categories,id',
                 'element_types' => 'required|array',
                 'element_types.*' => 'string|in:templates,chunks,snippets,plugins,modules,tvs',
             ]);
 
-            $targetCategory = Category::find($validated['target_category_id']);
-            $movedCount = 0;
-            $results = [];
+            $result = $this->categoryService->moveElements(
+                $id, 
+                $validated['target_category_id'], 
+                $validated['element_types']
+            );
 
-            foreach ($validated['element_types'] as $type) {
-                $count = 0;
-                switch ($type) {
-                    case 'templates':
-                        $count = SiteTemplate::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                    case 'chunks':
-                        $count = SiteHtmlsnippet::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                    case 'snippets':
-                        $count = SiteSnippet::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                    case 'plugins':
-                        $count = SitePlugin::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                    case 'modules':
-                        $count = SiteModule::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                    case 'tvs':
-                        $count = SiteTmplvar::where('category', $id)->update(['category' => $targetCategory->id]);
-                        break;
-                }
-                $results[$type] = $count;
-                $movedCount += $count;
-            }
-
-            return $this->success([
-                'moved_count' => $movedCount,
-                'results' => $results,
-                'source_category' => $this->formatCategory($category),
-                'target_category' => $this->formatCategory($targetCategory),
-            ], 'Elements moved successfully');
+            return $this->success($result, 'Elements moved successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -332,11 +261,43 @@ class CategoryController extends ApiController
         }
     }
 
+    public function stats()
+    {
+        try {
+            $stats = $this->categoryService->getCategoriesStats();
+            
+            return $this->success($stats, 'Categories statistics retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to fetch categories statistics');
+        }
+    }
+
+    public function uncategorizedElements($type)
+    {
+        try {
+            $validTypes = ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs'];
+            
+            if (!in_array($type, $validTypes)) {
+                return $this->error('Invalid element type', [
+                    'available_types' => $validTypes
+                ], 422);
+            }
+
+            $elements = $this->categoryService->getElementsNotInCategory($type);
+            
+            return $this->success($elements, 'Uncategorized ' . $type . ' retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to fetch uncategorized elements');
+        }
+    }
+
     protected function formatCategory($category, $includeCounts = false, $includeElements = false)
     {
         $data = [
             'id' => $category->id,
-            'name' => $category->category, // Используем алиас getNameAttribute
+            'name' => $category->category,
             'category' => $category->category,
             'rank' => $category->rank,
         ];
@@ -367,27 +328,5 @@ class CategoryController extends ApiController
         }
 
         return $data;
-    }
-
-    protected function categoryHasElements($category)
-    {
-        return $category->templates->count() > 0 ||
-               $category->chunks->count() > 0 ||
-               $category->snippets->count() > 0 ||
-               $category->plugins->count() > 0 ||
-               $category->modules->count() > 0 ||
-               $category->tvs->count() > 0;
-    }
-
-    protected function safeFormatDate($dateValue)
-    {
-        if (!$dateValue) return null;
-        if ($dateValue instanceof \Illuminate\Support\Carbon) {
-            return $dateValue->format('Y-m-d H:i:s');
-        }
-        if (is_numeric($dateValue) && $dateValue > 0) {
-            return date('Y-m-d H:i:s', $dateValue);
-        }
-        return null;
     }
 }

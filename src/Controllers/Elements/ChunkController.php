@@ -1,15 +1,21 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Elements;
+namespace roilafx\Evolutionapi\Controllers\Elements;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
-use EvolutionCMS\Models\SiteHtmlsnippet;
-use EvolutionCMS\Models\Category;
+use roilafx\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Services\Elements\ChunkService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class ChunkController extends ApiController
 {
+    protected $chunkService;
+
+    public function __construct(ChunkService $chunkService)
+    {
+        $this->chunkService = $chunkService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -25,51 +31,12 @@ class ChunkController extends ApiController
                 'include_category' => 'nullable|boolean',
             ]);
 
-            $query = SiteHtmlsnippet::query();
-
-            // Поиск по названию или описанию
-            if ($request->has('search')) {
-                $searchTerm = $validated['search'];
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where('name', 'LIKE', "%{$searchTerm}%")
-                      ->orWhere('description', 'LIKE', "%{$searchTerm}%");
-                });
-            }
-
-            // Фильтр по категории
-            if ($request->has('category')) {
-                $query->where('category', $validated['category']);
-            }
-
-            // Фильтр по блокировке
-            if ($request->has('locked')) {
-                $query->where('locked', $validated['locked']);
-            }
-
-            // Фильтр по отключению
-            if ($request->has('disabled')) {
-                $query->where('disabled', $validated['disabled']);
-            }
-
-            // Фильтр по типу кэширования
-            if ($request->has('cache_type')) {
-                $query->where('cache_type', $validated['cache_type']);
-            }
-
-            // Сортировка
-            $sortBy = $validated['sort_by'] ?? 'name';
-            $sortOrder = $validated['sort_order'] ?? 'asc';
-            $query->orderBy($sortBy, $sortOrder);
-
-            // Пагинация
-            $perPage = $validated['per_page'] ?? 20;
-            $paginator = $query->paginate($perPage);
+            $paginator = $this->chunkService->getAll($validated);
             
             $includeCategory = $request->get('include_category', false);
             
-            // Форматируем данные
             $chunks = collect($paginator->items())->map(function($chunk) use ($includeCategory) {
-                return $this->formatChunk($chunk, $includeCategory);
+                return $this->chunkService->formatChunk($chunk, $includeCategory);
             });
             
             return $this->paginated($chunks, $paginator, 'Chunks retrieved successfully');
@@ -84,13 +51,13 @@ class ChunkController extends ApiController
     public function show($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::with('categories')->find($id);
+            $chunk = $this->chunkService->findById($id);
                 
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
             
-            $formattedChunk = $this->formatChunk($chunk, true);
+            $formattedChunk = $this->chunkService->formatChunk($chunk, true);
             
             return $this->success($formattedChunk, 'Chunk retrieved successfully');
             
@@ -114,23 +81,8 @@ class ChunkController extends ApiController
                 'disabled' => 'nullable|boolean',
             ]);
 
-            $chunkData = [
-                'name' => $validated['name'],
-                'description' => $validated['description'] ?? '',
-                'snippet' => $validated['snippet'],
-                'category' => $validated['category'] ?? 0,
-                'editor_type' => $validated['editor_type'] ?? 0,
-                'editor_name' => $validated['editor_name'] ?? '',
-                'cache_type' => $validated['cache_type'] ?? false,
-                'locked' => $validated['locked'] ?? false,
-                'disabled' => $validated['disabled'] ?? false,
-                'createdon' => time(),
-                'editedon' => time(),
-            ];
-
-            $chunk = SiteHtmlsnippet::create($chunkData);
-
-            $formattedChunk = $this->formatChunk($chunk, true);
+            $chunk = $this->chunkService->create($validated);
+            $formattedChunk = $this->chunkService->formatChunk($chunk, true);
             
             return $this->created($formattedChunk, 'Chunk created successfully');
 
@@ -144,7 +96,7 @@ class ChunkController extends ApiController
     public function update(Request $request, $id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
                 
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
@@ -162,23 +114,8 @@ class ChunkController extends ApiController
                 'disabled' => 'nullable|boolean',
             ]);
 
-            $updateData = [];
-            $fields = [
-                'name', 'description', 'snippet', 'category', 'editor_type',
-                'editor_name', 'cache_type', 'locked', 'disabled'
-            ];
-
-            foreach ($fields as $field) {
-                if (isset($validated[$field])) {
-                    $updateData[$field] = $validated[$field];
-                }
-            }
-
-            $updateData['editedon'] = time();
-
-            $chunk->update($updateData);
-
-            $formattedChunk = $this->formatChunk($chunk->fresh(), true);
+            $updatedChunk = $this->chunkService->update($id, $validated);
+            $formattedChunk = $this->chunkService->formatChunk($updatedChunk, true);
             
             return $this->updated($formattedChunk, 'Chunk updated successfully');
 
@@ -192,13 +129,13 @@ class ChunkController extends ApiController
     public function destroy($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
                 
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            $chunk->delete();
+            $this->chunkService->delete($id);
 
             return $this->deleted('Chunk deleted successfully');
 
@@ -210,19 +147,13 @@ class ChunkController extends ApiController
     public function duplicate($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            // Создаем копию чанка
-            $newChunk = $chunk->replicate();
-            $newChunk->name = $chunk->name . ' (Copy)';
-            $newChunk->createdon = time();
-            $newChunk->editedon = time();
-            $newChunk->save();
-
-            $formattedChunk = $this->formatChunk($newChunk, true);
+            $newChunk = $this->chunkService->duplicate($id);
+            $formattedChunk = $this->chunkService->formatChunk($newChunk, true);
             
             return $this->created($formattedChunk, 'Chunk duplicated successfully');
 
@@ -234,17 +165,15 @@ class ChunkController extends ApiController
     public function enable($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            $chunk->update([
-                'disabled' => false,
-                'editedon' => time(),
-            ]);
-
-            return $this->success($this->formatChunk($chunk->fresh(), true), 'Chunk enabled successfully');
+            $updatedChunk = $this->chunkService->toggleStatus($id, 'disabled', false);
+            $formattedChunk = $this->chunkService->formatChunk($updatedChunk, true);
+            
+            return $this->success($formattedChunk, 'Chunk enabled successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to enable chunk');
@@ -254,17 +183,15 @@ class ChunkController extends ApiController
     public function disable($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            $chunk->update([
-                'disabled' => true,
-                'editedon' => time(),
-            ]);
-
-            return $this->success($this->formatChunk($chunk->fresh(), true), 'Chunk disabled successfully');
+            $updatedChunk = $this->chunkService->toggleStatus($id, 'disabled', true);
+            $formattedChunk = $this->chunkService->formatChunk($updatedChunk, true);
+            
+            return $this->success($formattedChunk, 'Chunk disabled successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to disable chunk');
@@ -274,17 +201,15 @@ class ChunkController extends ApiController
     public function lock($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            $chunk->update([
-                'locked' => true,
-                'editedon' => time(),
-            ]);
-
-            return $this->success($this->formatChunk($chunk->fresh(), true), 'Chunk locked successfully');
+            $updatedChunk = $this->chunkService->toggleStatus($id, 'locked', true);
+            $formattedChunk = $this->chunkService->formatChunk($updatedChunk, true);
+            
+            return $this->success($formattedChunk, 'Chunk locked successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to lock chunk');
@@ -294,17 +219,15 @@ class ChunkController extends ApiController
     public function unlock($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
 
-            $chunk->update([
-                'locked' => false,
-                'editedon' => time(),
-            ]);
-
-            return $this->success($this->formatChunk($chunk->fresh(), true), 'Chunk unlocked successfully');
+            $updatedChunk = $this->chunkService->toggleStatus($id, 'locked', false);
+            $formattedChunk = $this->chunkService->formatChunk($updatedChunk, true);
+            
+            return $this->success($formattedChunk, 'Chunk unlocked successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to unlock chunk');
@@ -314,7 +237,7 @@ class ChunkController extends ApiController
     public function content($id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
@@ -333,7 +256,7 @@ class ChunkController extends ApiController
     public function updateContent(Request $request, $id)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
@@ -342,15 +265,12 @@ class ChunkController extends ApiController
                 'content' => 'required|string',
             ]);
 
-            $chunk->update([
-                'snippet' => $validated['content'],
-                'editedon' => time(),
-            ]);
+            $updatedChunk = $this->chunkService->updateContent($id, $validated['content']);
 
             return $this->success([
-                'chunk_id' => $chunk->id,
-                'chunk_name' => $chunk->name,
-                'content' => $chunk->snippet,
+                'chunk_id' => $updatedChunk->id,
+                'chunk_name' => $updatedChunk->name,
+                'content' => $updatedChunk->snippet,
             ], 'Chunk content updated successfully');
 
         } catch (ValidationException $e) {
@@ -363,7 +283,7 @@ class ChunkController extends ApiController
     public function execute($id, Request $request)
     {
         try {
-            $chunk = SiteHtmlsnippet::find($id);
+            $chunk = $this->chunkService->findById($id);
             if (!$chunk) {
                 return $this->notFound('Chunk not found');
             }
@@ -372,11 +292,8 @@ class ChunkController extends ApiController
                 return $this->error('Chunk is disabled', [], 423);
             }
 
-            // Получаем параметры для чанка
             $params = $request->all();
-
-            // Выполняем чанк через EvolutionCMS
-            $output = evolutionCMS()->evalSnippet($chunk->snippet, $params);
+            $output = $this->chunkService->execute($id, $params);
 
             return $this->success([
                 'chunk_id' => $chunk->id,
@@ -388,44 +305,5 @@ class ChunkController extends ApiController
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to execute chunk');
         }
-    }
-
-    protected function formatChunk($chunk, $includeCategory = false)
-    {
-        $data = [
-            'id' => $chunk->id,
-            'name' => $chunk->name,
-            'description' => $chunk->description,
-            'editor_type' => $chunk->editor_type,
-            'editor_name' => $chunk->editor_name,
-            'cache_type' => (bool)$chunk->cache_type,
-            'locked' => (bool)$chunk->locked,
-            'disabled' => (bool)$chunk->disabled,
-            'created_at' => $this->safeFormatDate($chunk->createdon),
-            'updated_at' => $this->safeFormatDate($chunk->editedon),
-            'is_locked' => $chunk->isAlreadyEdit,
-            'locked_info' => $chunk->alreadyEditInfo,
-        ];
-
-        if ($includeCategory && $chunk->categories) {
-            $data['category'] = [
-                'id' => $chunk->categories->id,
-                'name' => $chunk->categories->category,
-            ];
-        }
-
-        return $data;
-    }
-
-    protected function safeFormatDate($dateValue)
-    {
-        if (!$dateValue) return null;
-        if ($dateValue instanceof \Illuminate\Support\Carbon) {
-            return $dateValue->format('Y-m-d H:i:s');
-        }
-        if (is_numeric($dateValue) && $dateValue > 0) {
-            return date('Y-m-d H:i:s', $dateValue);
-        }
-        return null;
     }
 }

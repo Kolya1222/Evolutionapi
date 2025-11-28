@@ -1,6 +1,6 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers;
+namespace roilafx\Evolutionapi\Controllers;
 
 use Illuminate\Routing\Controller;
 use Illuminate\Http\JsonResponse;
@@ -148,7 +148,6 @@ class ApiController extends Controller
         
         $errors = [];
         
-        // В development режиме добавляем детальную информацию
         if (app()->environment('local', 'development')) {
             $errors = [
                 'exception' => get_class($exception),
@@ -159,16 +158,6 @@ class ApiController extends Controller
         }
 
         return $this->error($message, $errors, 500);
-    }
-
-    /**
-     * Проверка прав доступа
-     */
-    protected function checkPermission($permission): bool
-    {
-        // Здесь можно интегрировать с системой прав Evolution CMS
-        // Пока заглушка - реализуйте по необходимости
-        return true;
     }
 
     /**

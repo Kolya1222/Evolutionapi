@@ -1,8 +1,6 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Services;
-
-use Exception;
+namespace roilafx\Evolutionapi\Services;
 
 abstract class BaseService
 {
@@ -11,21 +9,6 @@ abstract class BaseService
     public function __construct()
     {
         $this->core = evolutionCMS();
-    }
-
-    /**
-     * Абстрактный метод - должен быть реализован в дочерних классах
-     */
-    abstract protected function hasPermission(string $permission): bool;
-
-    /**
-     * Проверка прав с выбрасыванием исключения
-     */
-    protected function checkPermission(string $permission): void
-    {
-        if (!$this->hasPermission($permission)) {
-            throw new Exception("Access denied: {$permission} permission required");
-        }
     }
 
     /**
@@ -47,12 +30,27 @@ abstract class BaseService
     /**
      * Безопасное форматирование даты
      */
-    protected function safeFormatDate($dateValue): ?string
+    public function safeFormatDate($dateValue): ?string
     {
-        if (!$dateValue) return null;
+        if (empty($dateValue)) return null;
         
+        // Если это timestamp (число)
         if (is_numeric($dateValue) && $dateValue > 0) {
             return date('Y-m-d H:i:s', $dateValue);
+        }
+        
+        // Если это строка с датой
+        if (is_string($dateValue) && !empty(trim($dateValue))) {
+            // Проверяем, является ли строка валидной датой в формате Y-m-d H:i:s
+            if (preg_match('/^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}$/', $dateValue)) {
+                return $dateValue; // Уже в правильном формате, возвращаем как есть
+            }
+            
+            // Пробуем преобразовать другие форматы
+            $timestamp = strtotime($dateValue);
+            if ($timestamp !== false && $timestamp > 0) {
+                return date('Y-m-d H:i:s', $timestamp);
+            }
         }
         
         return null;

@@ -1,16 +1,21 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Elements;
+namespace roilafx\Evolutionapi\Controllers\Elements;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
-use EvolutionCMS\Models\SystemEventname;
-use EvolutionCMS\Models\SitePlugin;
-use EvolutionCMS\Models\SitePluginEvent;
+use roilafx\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Services\Elements\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class EventController extends ApiController
 {
+    protected $eventService;
+
+    public function __construct(EventService $eventService)
+    {
+        $this->eventService = $eventService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -25,42 +30,13 @@ class EventController extends ApiController
                 'include_plugins_count' => 'nullable|boolean',
             ]);
 
-            $query = SystemEventname::query();
-
-            // Поиск по названию или группе
-            if ($request->has('search')) {
-                $searchTerm = $validated['search'];
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where('name', 'LIKE', "%{$searchTerm}%")
-                      ->orWhere('groupname', 'LIKE', "%{$searchTerm}%");
-                });
-            }
-
-            // Фильтр по сервису
-            if ($request->has('service')) {
-                $query->where('service', $validated['service']);
-            }
-
-            // Фильтр по группе
-            if ($request->has('groupname')) {
-                $query->where('groupname', $validated['groupname']);
-            }
-
-            // Сортировка
-            $sortBy = $validated['sort_by'] ?? 'name';
-            $sortOrder = $validated['sort_order'] ?? 'asc';
-            $query->orderBy($sortBy, $sortOrder);
-
-            // Пагинация
-            $perPage = $validated['per_page'] ?? 20;
-            $paginator = $query->paginate($perPage);
+            $paginator = $this->eventService->getAll($validated);
             
             $includePlugins = $request->get('include_plugins', false);
             $includePluginsCount = $request->get('include_plugins_count', false);
             
-            // Форматируем данные
             $events = collect($paginator->items())->map(function($event) use ($includePlugins, $includePluginsCount) {
-                return $this->formatEvent($event, $includePlugins, $includePluginsCount);
+                return $this->eventService->formatEvent($event, $includePlugins, $includePluginsCount);
             });
             
             return $this->paginated($events, $paginator, 'Events retrieved successfully');
@@ -75,18 +51,13 @@ class EventController extends ApiController
     public function show($id)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
                 
             if (!$event) {
                 return $this->notFound('Event not found');
             }
             
-            // Загружаем плагины, привязанные к событию
-            $event->load(['plugins' => function($query) {
-                $query->orderBy('site_plugin_events.priority', 'asc');
-            }]);
-            
-            $formattedEvent = $this->formatEvent($event, true, true);
+            $formattedEvent = $this->eventService->formatEvent($event, true, true);
             
             return $this->success($formattedEvent, 'Event retrieved successfully');
             
@@ -104,15 +75,8 @@ class EventController extends ApiController
                 'groupname' => 'nullable|string|max:255',
             ]);
 
-            $eventData = [
-                'name' => $validated['name'],
-                'service' => $validated['service'] ?? 0,
-                'groupname' => $validated['groupname'] ?? '',
-            ];
-
-            $event = SystemEventname::create($eventData);
-
-            $formattedEvent = $this->formatEvent($event, false, false);
+            $event = $this->eventService->create($validated);
+            $formattedEvent = $this->eventService->formatEvent($event, false, false);
             
             return $this->created($formattedEvent, 'Event created successfully');
 
@@ -126,7 +90,7 @@ class EventController extends ApiController
     public function update(Request $request, $id)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
                 
             if (!$event) {
                 return $this->notFound('Event not found');
@@ -138,18 +102,8 @@ class EventController extends ApiController
                 'groupname' => 'nullable|string|max:255',
             ]);
 
-            $updateData = [];
-            $fields = ['name', 'service', 'groupname'];
-
-            foreach ($fields as $field) {
-                if (isset($validated[$field])) {
-                    $updateData[$field] = $validated[$field];
-                }
-            }
-
-            $event->update($updateData);
-
-            $formattedEvent = $this->formatEvent($event->fresh(), false, false);
+            $updatedEvent = $this->eventService->update($id, $validated);
+            $formattedEvent = $this->eventService->formatEvent($updatedEvent, false, false);
             
             return $this->updated($formattedEvent, 'Event updated successfully');
 
@@ -163,23 +117,13 @@ class EventController extends ApiController
     public function destroy($id)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
                 
             if (!$event) {
                 return $this->notFound('Event not found');
             }
 
-            // Проверяем, есть ли плагины, привязанные к событию
-            $pluginsCount = SitePluginEvent::where('evtid', $id)->count();
-            if ($pluginsCount > 0) {
-                return $this->error(
-                    'Cannot delete event with attached plugins',
-                    ['event' => "There are {$pluginsCount} plugins attached to this event. Remove them first."],
-                    422
-                );
-            }
-
-            $event->delete();
+            $this->eventService->delete($id);
 
             return $this->deleted('Event deleted successfully');
 
@@ -191,33 +135,24 @@ class EventController extends ApiController
     public function plugins($id)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
             if (!$event) {
                 return $this->notFound('Event not found');
             }
 
-            $plugins = SitePluginEvent::where('evtid', $id)
-                ->join('site_plugins', 'site_plugin_events.pluginid', '=', 'site_plugins.id')
-                ->select('site_plugin_events.*', 'site_plugins.name as plugin_name', 'site_plugins.disabled as plugin_disabled')
-                ->orderBy('site_plugin_events.priority', 'asc')
-                ->get()
-                ->map(function($pluginEvent) {
-                    return [
-                        'plugin_id' => $pluginEvent->pluginid,
-                        'plugin_name' => $pluginEvent->plugin_name,
-                        'plugin_disabled' => (bool)$pluginEvent->plugin_disabled,
-                        'priority' => $pluginEvent->priority,
-                        'plugin_event_id' => $pluginEvent->id,
-                    ];
-                });
+            $plugins = $this->eventService->getEventPlugins($id);
 
             return $this->success([
                 'event_id' => $event->id,
                 'event_name' => $event->name,
                 'plugins' => $plugins,
-                'plugins_count' => $plugins->count(),
-                'enabled_plugins_count' => $plugins->where('plugin_disabled', false)->count(),
-                'disabled_plugins_count' => $plugins->where('plugin_disabled', true)->count(),
+                'plugins_count' => count($plugins),
+                'enabled_plugins_count' => count(array_filter($plugins, function($plugin) {
+                    return !$plugin['plugin_disabled'];
+                })),
+                'disabled_plugins_count' => count(array_filter($plugins, function($plugin) {
+                    return $plugin['plugin_disabled'];
+                })),
             ], 'Event plugins retrieved successfully');
 
         } catch (\Exception $e) {
@@ -228,7 +163,7 @@ class EventController extends ApiController
     public function addPlugin(Request $request, $id)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
             if (!$event) {
                 return $this->notFound('Event not found');
             }
@@ -238,38 +173,20 @@ class EventController extends ApiController
                 'priority' => 'nullable|integer|min:0',
             ]);
 
-            $plugin = SitePlugin::find($validated['plugin_id']);
-            if (!$plugin) {
-                return $this->notFound('Plugin not found');
-            }
-
-            // Проверяем, не привязан ли уже плагин к событию
-            $existingPluginEvent = SitePluginEvent::where('evtid', $id)
-                ->where('pluginid', $validated['plugin_id'])
-                ->first();
-
-            if ($existingPluginEvent) {
-                return $this->error(
-                    'Plugin already attached to event',
-                    ['plugin' => 'This plugin is already attached to the event'],
-                    422
-                );
-            }
-
-            // Добавляем плагин к событию
-            SitePluginEvent::create([
-                'evtid' => $id,
-                'pluginid' => $validated['plugin_id'],
-                'priority' => $validated['priority'] ?? 0,
-            ]);
+            $result = $this->eventService->addPluginToEvent(
+                $id, 
+                $validated['plugin_id'], 
+                $validated['priority'] ?? 0
+            );
 
             return $this->success([
                 'event_id' => $event->id,
                 'event_name' => $event->name,
                 'plugin' => [
-                    'id' => $plugin->id,
-                    'name' => $plugin->name,
-                    'priority' => $validated['priority'] ?? 0,
+                    'id' => $result['plugin']->id,
+                    'name' => $result['plugin']->name,
+                    'priority' => $result['plugin_event']->priority,
+                    'plugin_event_id' => $result['plugin_event']->id,
                 ],
             ], 'Plugin added to event successfully');
 
@@ -283,20 +200,12 @@ class EventController extends ApiController
     public function removePlugin($id, $pluginId)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
             if (!$event) {
                 return $this->notFound('Event not found');
             }
 
-            $pluginEvent = SitePluginEvent::where('evtid', $id)
-                ->where('pluginid', $pluginId)
-                ->first();
-
-            if (!$pluginEvent) {
-                return $this->notFound('Plugin not found in event');
-            }
-
-            $pluginEvent->delete();
+            $this->eventService->removePluginFromEvent($id, $pluginId);
 
             return $this->deleted('Plugin removed from event successfully');
 
@@ -308,7 +217,7 @@ class EventController extends ApiController
     public function updatePluginPriority(Request $request, $id, $pluginId)
     {
         try {
-            $event = SystemEventname::find($id);
+            $event = $this->eventService->findById($id);
             if (!$event) {
                 return $this->notFound('Event not found');
             }
@@ -317,24 +226,15 @@ class EventController extends ApiController
                 'priority' => 'required|integer|min:0',
             ]);
 
-            $pluginEvent = SitePluginEvent::where('evtid', $id)
-                ->where('pluginid', $pluginId)
-                ->first();
-
-            if (!$pluginEvent) {
-                return $this->notFound('Plugin not found in event');
-            }
-
-            $pluginEvent->update([
-                'priority' => $validated['priority'],
-            ]);
+            $result = $this->eventService->updatePluginPriority($id, $pluginId, $validated['priority']);
 
             return $this->success([
                 'event_id' => $event->id,
                 'event_name' => $event->name,
                 'plugin' => [
                     'id' => $pluginId,
-                    'priority' => $validated['priority'],
+                    'name' => $result['plugin']->name,
+                    'priority' => $result['plugin_event']->priority,
                 ],
             ], 'Plugin priority updated successfully');
 
@@ -348,15 +248,11 @@ class EventController extends ApiController
     public function groups()
     {
         try {
-            $groups = SystemEventname::select('groupname')
-                ->distinct()
-                ->where('groupname', '!=', '')
-                ->orderBy('groupname', 'asc')
-                ->pluck('groupname');
+            $groups = $this->eventService->getEventGroups();
 
             return $this->success([
                 'groups' => $groups,
-                'groups_count' => $groups->count(),
+                'groups_count' => count($groups),
             ], 'Event groups retrieved successfully');
 
         } catch (\Exception $e) {
@@ -367,21 +263,16 @@ class EventController extends ApiController
     public function byGroup($groupName)
     {
         try {
-            $events = SystemEventname::where('groupname', $groupName)
-                ->orderBy('name', 'asc')
-                ->get()
-                ->map(function($event) {
-                    return $this->formatEvent($event, false, true);
-                });
+            $events = $this->eventService->getEventsByGroup($groupName);
 
-            if ($events->isEmpty()) {
+            if (empty($events)) {
                 return $this->notFound('No events found for the specified group');
             }
 
             return $this->success([
                 'group' => $groupName,
                 'events' => $events,
-                'events_count' => $events->count(),
+                'events_count' => count($events),
             ], 'Events by group retrieved successfully');
 
         } catch (\Exception $e) {
@@ -392,14 +283,11 @@ class EventController extends ApiController
     public function services()
     {
         try {
-            $services = SystemEventname::select('service')
-                ->distinct()
-                ->orderBy('service', 'asc')
-                ->pluck('service');
+            $services = $this->eventService->getEventServices();
 
             return $this->success([
                 'services' => $services,
-                'services_count' => $services->count(),
+                'services_count' => count($services),
             ], 'Event services retrieved successfully');
 
         } catch (\Exception $e) {
@@ -410,21 +298,16 @@ class EventController extends ApiController
     public function byService($service)
     {
         try {
-            $events = SystemEventname::where('service', $service)
-                ->orderBy('name', 'asc')
-                ->get()
-                ->map(function($event) {
-                    return $this->formatEvent($event, false, true);
-                });
+            $events = $this->eventService->getEventsByService((int)$service);
 
-            if ($events->isEmpty()) {
+            if (empty($events)) {
                 return $this->notFound('No events found for the specified service');
             }
 
             return $this->success([
                 'service' => (int)$service,
                 'events' => $events,
-                'events_count' => $events->count(),
+                'events_count' => count($events),
             ], 'Events by service retrieved successfully');
 
         } catch (\Exception $e) {
@@ -440,22 +323,15 @@ class EventController extends ApiController
                 'limit' => 'nullable|integer|min:1|max:50',
             ]);
 
-            $query = $validated['query'];
-            $limit = $validated['limit'] ?? 10;
-
-            $events = SystemEventname::where('name', 'LIKE', "%{$query}%")
-                ->orWhere('groupname', 'LIKE', "%{$query}%")
-                ->orderBy('name', 'asc')
-                ->limit($limit)
-                ->get()
-                ->map(function($event) {
-                    return $this->formatEvent($event, false, true);
-                });
+            $events = $this->eventService->searchEvents(
+                $validated['query'], 
+                $validated['limit'] ?? 10
+            );
 
             return $this->success([
-                'query' => $query,
+                'query' => $validated['query'],
                 'events' => $events,
-                'events_count' => $events->count(),
+                'events_count' => count($events),
             ], 'Events search completed successfully');
 
         } catch (ValidationException $e) {
@@ -463,34 +339,5 @@ class EventController extends ApiController
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to search events');
         }
-    }
-
-    protected function formatEvent($event, $includePlugins = false, $includePluginsCount = false)
-    {
-        $data = [
-            'id' => $event->id,
-            'name' => $event->name,
-            'service' => $event->service,
-            'groupname' => $event->groupname,
-        ];
-
-        if ($includePluginsCount) {
-            $pluginsCount = SitePluginEvent::where('evtid', $event->id)->count();
-            $data['plugins_count'] = $pluginsCount;
-        }
-
-        if ($includePlugins && $event->relationLoaded('plugins')) {
-            $data['plugins'] = $event->plugins->map(function($plugin) {
-                return [
-                    'id' => $plugin->id,
-                    'name' => $plugin->name,
-                    'disabled' => (bool)$plugin->disabled,
-                    'priority' => $plugin->pivot->priority,
-                ];
-            });
-            $data['plugins_count'] = $event->plugins->count();
-        }
-
-        return $data;
     }
 }

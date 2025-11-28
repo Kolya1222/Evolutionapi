@@ -1,25 +1,25 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use EvolutionCMS\Evolutionapi\Controllers\Content\DocumentController;
-use EvolutionCMS\Evolutionapi\Controllers\Content\CategoryController;
-use EvolutionCMS\Evolutionapi\Controllers\Content\DocumentGroupController;
-use EvolutionCMS\Evolutionapi\Controllers\Content\ClosureController;
-use EvolutionCMS\Evolutionapi\Controllers\Users\UserController;
-use EvolutionCMS\Evolutionapi\Controllers\Users\AuthController;
-use EvolutionCMS\Evolutionapi\Controllers\Users\RoleController;
-use EvolutionCMS\Evolutionapi\Controllers\Users\MemberGroupController;
-use EvolutionCMS\Evolutionapi\Controllers\Users\PermissionController;
-use EvolutionCMS\Evolutionapi\Controllers\Templates\TemplateController;
-use EvolutionCMS\Evolutionapi\Controllers\Templates\TvController;
-use EvolutionCMS\Evolutionapi\Controllers\Templates\TvValueController;
-use EvolutionCMS\Evolutionapi\Controllers\Elements\ChunkController;
-use EvolutionCMS\Evolutionapi\Controllers\Elements\SnippetController;
-use EvolutionCMS\Evolutionapi\Controllers\Elements\PluginController;
-use EvolutionCMS\Evolutionapi\Controllers\Elements\ModuleController;
-use EvolutionCMS\Evolutionapi\Controllers\Elements\EventController;
-use EvolutionCMS\Evolutionapi\Controllers\System\LogController;
-use EvolutionCMS\Evolutionapi\Controllers\System\SystemController;
+use roilafx\Evolutionapi\Controllers\Content\DocumentController;
+use roilafx\Evolutionapi\Controllers\Content\CategoryController;
+use roilafx\Evolutionapi\Controllers\Content\DocumentGroupController;
+use roilafx\Evolutionapi\Controllers\Content\ClosureController;
+use roilafx\Evolutionapi\Controllers\Users\UserController;
+use roilafx\Evolutionapi\Controllers\Users\AuthController;
+use roilafx\Evolutionapi\Controllers\Users\RoleController;
+use roilafx\Evolutionapi\Controllers\Users\MemberGroupController;
+use roilafx\Evolutionapi\Controllers\Users\PermissionController;
+use roilafx\Evolutionapi\Controllers\Templates\TemplateController;
+use roilafx\Evolutionapi\Controllers\Templates\TvController;
+use roilafx\Evolutionapi\Controllers\Templates\TvValueController;
+use roilafx\Evolutionapi\Controllers\Elements\ChunkController;
+use roilafx\Evolutionapi\Controllers\Elements\SnippetController;
+use roilafx\Evolutionapi\Controllers\Elements\PluginController;
+use roilafx\Evolutionapi\Controllers\Elements\ModuleController;
+use roilafx\Evolutionapi\Controllers\Elements\EventController;
+use roilafx\Evolutionapi\Controllers\System\LogController;
+use roilafx\Evolutionapi\Controllers\System\SystemController;
 
 Route::prefix('api')->group(function () {
     Route::prefix('contents')->group(function () {
@@ -37,22 +37,28 @@ Route::prefix('api')->group(function () {
             Route::get('/{id}/siblings', [DocumentController::class, 'siblings']);
             Route::get('/{id}/ancestors', [DocumentController::class, 'ancestors']);
             Route::get('/{id}/descendants', [DocumentController::class, 'descendants']);
-            Route::get('/search', [DocumentController::class, 'search']);
-            Route::post('/advanced-search', [DocumentController::class, 'advancedSearch']);
+            Route::get('/{id}/tv', [DocumentController::class, 'getTV']);
+            Route::put('/{id}/tv', [DocumentController::class, 'updateTV']);
             Route::post('/publish-all', [DocumentController::class, 'publishAll']);
             Route::post('/unpublish-all', [DocumentController::class, 'unpublishAll']);
             Route::post('/update-tree', [DocumentController::class, 'updateTree']);
+            Route::get('/{id}/groups', [DocumentController::class, 'groups']);
+            Route::post('/{id}/groups', [DocumentController::class, 'attachToGroups']);
+            Route::post('/{id}/sync-groups', [DocumentController::class, 'syncGroups']);
+            Route::delete('/{id}/groups/{groupId}', [DocumentController::class, 'detachFromGroup']);
         });
 
         Route::prefix('categories')->group(function () {
             Route::get('/', [CategoryController::class, 'index']);
             Route::post('/', [CategoryController::class, 'store']);
+            Route::get('/stats', [CategoryController::class, 'stats']);
             Route::get('/{id}', [CategoryController::class, 'show']);
             Route::put('/{id}', [CategoryController::class, 'update']);
             Route::delete('/{id}', [CategoryController::class, 'destroy']);
             Route::get('/{id}/elements', [CategoryController::class, 'elements']);
             Route::get('/{id}/elements/{type}', [CategoryController::class, 'elements']);
             Route::post('/{id}/move-elements', [CategoryController::class, 'moveElements']);
+            Route::get('/elements/uncategorized/{type}', [CategoryController::class, 'uncategorizedElements']);
         });
 
         Route::prefix('document-groups')->group(function () {
@@ -68,13 +74,15 @@ Route::prefix('api')->group(function () {
         });
 
         Route::prefix('closures')->group(function () {
+            Route::get('/stats', [ClosureController::class, 'stats']);
+            Route::post('/create-relationship', [ClosureController::class, 'createRelationship']);
+            Route::get('/common-ancestors', [ClosureController::class, 'commonAncestors']);
+            Route::get('/check-ancestry', [ClosureController::class, 'checkAncestry']);
             Route::get('/', [ClosureController::class, 'index']);
             Route::post('/', [ClosureController::class, 'store']);
-            Route::get('/stats', [ClosureController::class, 'stats']);
             Route::get('/{id}', [ClosureController::class, 'show']);
             Route::put('/{id}', [ClosureController::class, 'update']);
             Route::delete('/{id}', [ClosureController::class, 'destroy']);
-            Route::post('/create-relationship', [ClosureController::class, 'createRelationship']);
             Route::get('/documents/{documentId}/ancestors', [ClosureController::class, 'ancestors']);
             Route::get('/documents/{documentId}/descendants', [ClosureController::class, 'descendants']);
             Route::get('/documents/{documentId}/path', [ClosureController::class, 'path']);
@@ -231,7 +239,7 @@ Route::prefix('api')->group(function () {
             Route::put('/{id}/properties', [SnippetController::class, 'updateProperties']);
             Route::post('/{id}/execute', [SnippetController::class, 'execute']);
             Route::post('/{id}/attach-module', [SnippetController::class, 'attachModule']);
-            Route::delete('/{id}/detach-module', [SnippetController::class, 'detachModule']);
+            Route::post('/{id}/detach-module', [SnippetController::class, 'detachModule']);
         });
 
         Route::prefix('plugins')->group(function () {

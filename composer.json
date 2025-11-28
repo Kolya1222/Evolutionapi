@@ -1,17 +1,17 @@
 {
-  "name": "evolutioncms/evolutionapi",
+  "name": "roilafx/evolutionapi",
   "require": {
 
   },
   "autoload": {
     "psr-4": {
-      "EvolutionCMS\\Evolutionapi\\": "src"
+      "roilafx\\Evolutionapi\\": "src"
     }
   },
   "extra": {
     "laravel": {
       "providers": [
-        "EvolutionCMS\\Evolutionapi\\EvolutionapiServiceProvider"
+        "roilafx\\Evolutionapi\\EvolutionapiServiceProvider"
       ]
 
     }

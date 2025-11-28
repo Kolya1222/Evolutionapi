@@ -1,8 +1,9 @@
 <?php
 
-namespace EvolutionCMS\Evolutionapi\Controllers\Content;
+namespace roilafx\Evolutionapi\Controllers\Content;
 
-use EvolutionCMS\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Controllers\ApiController;
+use roilafx\Evolutionapi\Services\Content\ClosureService;
 use EvolutionCMS\Models\ClosureTable;
 use EvolutionCMS\Models\SiteContent;
 use Illuminate\Http\Request;
@@ -10,6 +11,13 @@ use Illuminate\Validation\ValidationException;
 
 class ClosureController extends ApiController
 {
+    private $closureService;
+
+    public function __construct(ClosureService $closureService)
+    {
+        $this->closureService = $closureService;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -215,82 +223,30 @@ class ClosureController extends ApiController
     public function ancestors($documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
-            $ancestors = ClosureTable::where('descendant', $documentId)
-                ->where('depth', '>', 0)
-                ->orderBy('depth', 'asc')
-                ->get();
-
-            $ancestorsWithInfo = $ancestors->map(function($closure) {
-                $ancestorDoc = SiteContent::find($closure->ancestor);
-                return [
-                    'closure_id' => $closure->closure_id,
-                    'ancestor' => $closure->ancestor,
-                    'depth' => $closure->depth,
-                    'document' => $ancestorDoc ? [
-                        'id' => $ancestorDoc->id,
-                        'pagetitle' => $ancestorDoc->pagetitle,
-                        'alias' => $ancestorDoc->alias,
-                        'published' => (bool)$ancestorDoc->published,
-                        'deleted' => (bool)$ancestorDoc->deleted,
-                    ] : null,
-                ];
-            });
-
-            return $this->success([
-                'document_id' => $documentId,
-                'document_name' => $document->pagetitle,
-                'ancestors' => $ancestorsWithInfo,
-                'ancestors_count' => $ancestorsWithInfo->count(),
-                'path_depth' => $ancestorsWithInfo->max('depth') ?? 0,
-            ], 'Document ancestors retrieved successfully');
+            $result = $this->closureService->getAncestors($documentId);
+            return $this->success($result, 'Document ancestors retrieved successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to fetch document ancestors');
         }
     }
 
-    public function descendants($documentId)
+    public function descendants($documentId, Request $request)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
+            $validated = $this->validateRequest($request, [
+                'max_depth' => 'nullable|integer|min:1',
+                'include_self' => 'nullable|boolean',
+            ]);
 
-            $descendants = ClosureTable::where('ancestor', $documentId)
-                ->where('depth', '>', 0)
-                ->orderBy('depth', 'asc')
-                ->get();
+            $maxDepth = $validated['max_depth'] ?? null;
+            $includeSelf = $validated['include_self'] ?? false;
 
-            $descendantsWithInfo = $descendants->map(function($closure) {
-                $descendantDoc = SiteContent::find($closure->descendant);
-                return [
-                    'closure_id' => $closure->closure_id,
-                    'descendant' => $closure->descendant,
-                    'depth' => $closure->depth,
-                    'document' => $descendantDoc ? [
-                        'id' => $descendantDoc->id,
-                        'pagetitle' => $descendantDoc->pagetitle,
-                        'alias' => $descendantDoc->alias,
-                        'published' => (bool)$descendantDoc->published,
-                        'deleted' => (bool)$descendantDoc->deleted,
-                    ] : null,
-                ];
-            });
+            $result = $this->closureService->getDescendants($documentId, $maxDepth, $includeSelf);
+            return $this->success($result, 'Document descendants retrieved successfully');
 
-            return $this->success([
-                'document_id' => $documentId,
-                'document_name' => $document->pagetitle,
-                'descendants' => $descendantsWithInfo,
-                'descendants_count' => $descendantsWithInfo->count(),
-                'max_depth' => $descendantsWithInfo->max('depth') ?? 0,
-            ], 'Document descendants retrieved successfully');
-
+        } catch (ValidationException $e) {
+            return $this->validationError($e);
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to fetch document descendants');
         }
@@ -299,38 +255,8 @@ class ClosureController extends ApiController
     public function path($documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
-            $path = ClosureTable::where('descendant', $documentId)
-                ->orderBy('depth', 'asc')
-                ->get();
-
-            $pathWithInfo = $path->map(function($closure) {
-                $doc = SiteContent::find($closure->ancestor);
-                return [
-                    'closure_id' => $closure->closure_id,
-                    'document_id' => $closure->ancestor,
-                    'depth' => $closure->depth,
-                    'document' => $doc ? [
-                        'id' => $doc->id,
-                        'pagetitle' => $doc->pagetitle,
-                        'alias' => $doc->alias,
-                        'published' => (bool)$doc->published,
-                        'deleted' => (bool)$doc->deleted,
-                    ] : null,
-                ];
-            });
-
-            return $this->success([
-                'document_id' => $documentId,
-                'document_name' => $document->pagetitle,
-                'path' => $pathWithInfo,
-                'path_length' => $pathWithInfo->count(),
-                'breadcrumb' => $pathWithInfo->pluck('document.pagetitle')->filter()->implode(' → '),
-            ], 'Document path retrieved successfully');
+            $result = $this->closureService->getPath($documentId);
+            return $this->success($result, 'Document path retrieved successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to fetch document path');
@@ -340,11 +266,6 @@ class ClosureController extends ApiController
     public function subtree($documentId, Request $request)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
             $validated = $this->validateRequest($request, [
                 'max_depth' => 'nullable|integer|min:1',
                 'include_self' => 'nullable|boolean',
@@ -353,43 +274,8 @@ class ClosureController extends ApiController
             $maxDepth = $validated['max_depth'] ?? null;
             $includeSelf = $validated['include_self'] ?? false;
 
-            $query = ClosureTable::where('ancestor', $documentId);
-
-            if (!$includeSelf) {
-                $query->where('depth', '>', 0);
-            }
-
-            if ($maxDepth) {
-                $query->where('depth', '<=', $maxDepth);
-            }
-
-            $subtree = $query->orderBy('depth', 'asc')
-                ->orderBy('descendant', 'asc')
-                ->get();
-
-            $subtreeWithInfo = $subtree->map(function($closure) {
-                $doc = SiteContent::find($closure->descendant);
-                return [
-                    'closure_id' => $closure->closure_id,
-                    'document_id' => $closure->descendant,
-                    'depth' => $closure->depth,
-                    'document' => $doc ? [
-                        'id' => $doc->id,
-                        'pagetitle' => $doc->pagetitle,
-                        'alias' => $doc->alias,
-                        'published' => (bool)$doc->published,
-                        'deleted' => (bool)$doc->deleted,
-                    ] : null,
-                ];
-            });
-
-            return $this->success([
-                'root_document_id' => $documentId,
-                'root_document_name' => $document->pagetitle,
-                'subtree' => $subtreeWithInfo,
-                'subtree_size' => $subtreeWithInfo->count(),
-                'max_depth' => $subtreeWithInfo->max('depth') ?? 0,
-            ], 'Document subtree retrieved successfully');
+            $result = $this->closureService->getSubtree($documentId, $maxDepth, $includeSelf);
+            return $this->success($result, 'Document subtree retrieved successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -406,37 +292,12 @@ class ClosureController extends ApiController
                 'descendant_id' => 'required|integer|exists:site_content,id',
             ]);
 
-            $ancestor = SiteContent::find($validated['ancestor_id']);
-            $descendant = SiteContent::find($validated['descendant_id']);
+            $result = $this->closureService->createRelationship(
+                $validated['ancestor_id'], 
+                $validated['descendant_id']
+            );
 
-            if (!$ancestor || !$descendant) {
-                return $this->notFound('Ancestor or descendant document not found');
-            }
-
-            // Используем метод модели ClosureTable для создания связи
-            $closureTable = new ClosureTable();
-            $closureTable->insertNode($validated['ancestor_id'], $validated['descendant_id']);
-
-            // Получаем созданные связи
-            $createdRelationships = ClosureTable::where('ancestor', $validated['ancestor_id'])
-                ->where('descendant', $validated['descendant_id'])
-                ->get()
-                ->map(function($closure) {
-                    return $this->formatClosure($closure, true, true);
-                });
-
-            return $this->success([
-                'ancestor' => [
-                    'id' => $ancestor->id,
-                    'pagetitle' => $ancestor->pagetitle,
-                ],
-                'descendant' => [
-                    'id' => $descendant->id,
-                    'pagetitle' => $descendant->pagetitle,
-                ],
-                'created_relationships' => $createdRelationships,
-                'relationships_count' => $createdRelationships->count(),
-            ], 'Closure relationship created successfully');
+            return $this->success($result, 'Closure relationship created successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -448,39 +309,16 @@ class ClosureController extends ApiController
     public function moveNode(Request $request, $documentId)
     {
         try {
-            $document = SiteContent::find($documentId);
-            if (!$document) {
-                return $this->notFound('Document not found');
-            }
-
             $validated = $this->validateRequest($request, [
                 'new_ancestor_id' => 'nullable|integer|exists:site_content,id',
             ]);
 
-            $newAncestorId = $validated['new_ancestor_id'] ?? null;
+            $result = $this->closureService->moveNode(
+                $documentId, 
+                $validated['new_ancestor_id'] ?? null
+            );
 
-            if ($newAncestorId === $documentId) {
-                return $this->error(
-                    'Cannot move document to itself',
-                    ['document' => 'A document cannot be an ancestor of itself'],
-                    422
-                );
-            }
-
-            // Создаем временную closure запись для использования метода moveNodeTo
-            $closure = new ClosureTable();
-            $closure->descendant = $documentId;
-            
-            // Выполняем перемещение
-            $closure->moveNodeTo($newAncestorId);
-
-            return $this->success([
-                'document_id' => $documentId,
-                'document_name' => $document->pagetitle,
-                'new_ancestor_id' => $newAncestorId,
-                'new_ancestor_name' => $newAncestorId ? SiteContent::find($newAncestorId)->pagetitle : null,
-                'moved_at' => date('Y-m-d H:i:s'),
-            ], 'Document moved successfully');
+            return $this->success($result, 'Document moved successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -492,21 +330,59 @@ class ClosureController extends ApiController
     public function stats()
     {
         try {
-            $stats = [
-                'total_relationships' => ClosureTable::count(),
-                'max_depth' => ClosureTable::max('depth') ?? 0,
-                'avg_depth' => round(ClosureTable::avg('depth') ?? 0, 2),
-                'root_documents' => ClosureTable::where('depth', 0)->whereColumn('ancestor', 'descendant')->count(),
-                'direct_relationships' => ClosureTable::where('depth', 1)->count(),
-                'indirect_relationships' => ClosureTable::where('depth', '>', 1)->count(),
-                'most_connected_document' => $this->getMostConnectedDocument(),
-                'deepest_path' => $this->getDeepestPath(),
-            ];
-
+            $stats = $this->closureService->getStats();
             return $this->success($stats, 'Closure table statistics retrieved successfully');
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to fetch closure table statistics');
+        }
+    }
+
+    /**
+     * Дополнительные методы API для расширенного функционала
+     */
+
+    public function commonAncestors(Request $request)
+    {
+        try {
+            $validated = $this->validateRequest($request, [
+                'document1_id' => 'required|integer|exists:site_content,id',
+                'document2_id' => 'required|integer|exists:site_content,id',
+            ]);
+
+            $result = $this->closureService->findCommonAncestors(
+                $validated['document1_id'],
+                $validated['document2_id']
+            );
+
+            return $this->success($result, 'Common ancestors retrieved successfully');
+
+        } catch (ValidationException $e) {
+            return $this->validationError($e);
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to fetch common ancestors');
+        }
+    }
+
+    public function checkAncestry(Request $request)
+    {
+        try {
+            $validated = $this->validateRequest($request, [
+                'potential_ancestor_id' => 'required|integer|exists:site_content,id',
+                'potential_descendant_id' => 'required|integer|exists:site_content,id',
+            ]);
+
+            $result = $this->closureService->checkAncestry(
+                $validated['potential_ancestor_id'],
+                $validated['potential_descendant_id']
+            );
+
+            return $this->success($result, 'Ancestry check completed successfully');
+
+        } catch (ValidationException $e) {
+            return $this->validationError($e);
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to check ancestry');
         }
     }
 

@@ -1,4 +1,4 @@
-<?php namespace EvolutionCMS\Evolutionapi;
+<?php namespace roilafx\Evolutionapi;
 
 use EvolutionCMS\ServiceProvider;
 
