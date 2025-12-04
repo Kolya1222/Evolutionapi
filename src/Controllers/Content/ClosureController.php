@@ -8,7 +8,12 @@ use EvolutionCMS\Models\ClosureTable;
 use EvolutionCMS\Models\SiteContent;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Closures', 
+    description: 'Управление closure таблицей для иерархии документов'
+)]
 class ClosureController extends ApiController
 {
     private $closureService;
@@ -18,6 +23,89 @@ class ClosureController extends ApiController
         $this->closureService = $closureService;
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures',
+        summary: 'Получить список связей closure таблицы',
+        description: 'Возвращает список связей между документами с фильтрацией и пагинацией',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 50)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['closure_id', 'ancestor', 'descendant', 'depth'], default: 'closure_id')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'ancestor',
+                description: 'ID документа-предка',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'descendant',
+                description: 'ID документа-потомка',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'depth',
+                description: 'Точная глубина связи',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'min_depth',
+                description: 'Минимальная глубина связи',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'max_depth',
+                description: 'Максимальная глубина связи',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'include_ancestor_info',
+                description: 'Включить информацию о документе-предке',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+            new OA\Parameter(
+                name: 'include_descendant_info',
+                description: 'Включить информацию о документе-потомке',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -30,8 +118,8 @@ class ClosureController extends ApiController
                 'depth' => 'nullable|integer|min:0',
                 'min_depth' => 'nullable|integer|min:0',
                 'max_depth' => 'nullable|integer|min:0',
-                'include_ancestor_info' => 'nullable|boolean',
-                'include_descendant_info' => 'nullable|boolean',
+                'include_ancestor_info' => 'nullable|string|in:true,false,1,0',
+                'include_descendant_info' => 'nullable|string|in:true,false,1,0',
             ]);
 
             $query = ClosureTable::query();
@@ -70,8 +158,8 @@ class ClosureController extends ApiController
             $perPage = $validated['per_page'] ?? 50;
             $paginator = $query->paginate($perPage);
             
-            $includeAncestorInfo = $request->get('include_ancestor_info', false);
-            $includeDescendantInfo = $request->get('include_descendant_info', false);
+            $includeAncestorInfo = in_array($validated['include_ancestor_info'] ?? 'false', ['true', '1']);
+            $includeDescendantInfo = in_array($validated['include_descendant_info'] ?? 'false', ['true', '1']);
             
             // Форматируем данные
             $closures = collect($paginator->items())->map(function($closure) use ($includeAncestorInfo, $includeDescendantInfo) {
@@ -87,6 +175,26 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/{id}',
+        summary: 'Получить связь по ID',
+        description: 'Возвращает информацию о связи closure таблицы',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID связи closure таблицы',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -105,6 +213,28 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/closures',
+        summary: 'Создать новую связь',
+        description: 'Создает новую связь между документами в closure таблице',
+        tags: ['Closures'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['ancestor', 'descendant'],
+                properties: [
+                    new OA\Property(property: 'ancestor', type: 'integer', example: 1, description: 'ID документа-предка'),
+                    new OA\Property(property: 'descendant', type: 'integer', example: 2, description: 'ID документа-потомка'),
+                    new OA\Property(property: 'depth', type: 'integer', minimum: 0, example: 1, description: 'Глубина связи (0 для связи с самим собой)'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -146,6 +276,37 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/closures/{id}',
+        summary: 'Обновить связь',
+        description: 'Обновляет информацию о связи в closure таблице',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID связи closure таблицы',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'ancestor', type: 'integer', example: 1),
+                    new OA\Property(property: 'descendant', type: 'integer', example: 2),
+                    new OA\Property(property: 'depth', type: 'integer', minimum: 0, example: 1),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -202,6 +363,26 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/closures/{id}',
+        summary: 'Удалить связь',
+        description: 'Удаляет связь из closure таблицы',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID связи closure таблицы',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -220,6 +401,26 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/documents/{documentId}/ancestors',
+        summary: 'Получить предков документа',
+        description: 'Возвращает всех предков указанного документа',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function ancestors($documentId)
     {
         try {
@@ -231,6 +432,41 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/documents/{documentId}/descendants',
+        summary: 'Получить потомков документа',
+        description: 'Возвращает всех потомков указанного документа',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'max_depth',
+                description: 'Максимальная глубина для поиска потомков',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1)
+            ),
+            new OA\Parameter(
+                name: 'include_self',
+                description: 'Включить сам документ в результат',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function descendants($documentId, Request $request)
     {
         try {
@@ -252,6 +488,26 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/documents/{documentId}/path',
+        summary: 'Получить полный путь документа',
+        description: 'Возвращает полный путь документа от корня',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function path($documentId)
     {
         try {
@@ -263,6 +519,41 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/documents/{documentId}/subtree',
+        summary: 'Получить поддерево документа',
+        description: 'Возвращает все поддерево документа (все потомки)',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'max_depth',
+                description: 'Максимальная глубина поддерева',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1)
+            ),
+            new OA\Parameter(
+                name: 'include_self',
+                description: 'Включить сам документ в результат',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function subtree($documentId, Request $request)
     {
         try {
@@ -284,6 +575,27 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/closures/create-relationship',
+        summary: 'Создать связь между документами',
+        description: 'Создает новую связь между двумя документами с автоматическим расчетом глубины',
+        tags: ['Closures'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['ancestor_id', 'descendant_id'],
+                properties: [
+                    new OA\Property(property: 'ancestor_id', type: 'integer', example: 1, description: 'ID документа-предка'),
+                    new OA\Property(property: 'descendant_id', type: 'integer', example: 2, description: 'ID документа-потомка'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function createRelationship(Request $request)
     {
         try {
@@ -306,6 +618,35 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/closures/documents/{documentId}/move',
+        summary: 'Переместить документ',
+        description: 'Перемещает документ в дереве (изменяет родителя)',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID перемещаемого документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'new_ancestor_id', type: 'integer', example: 1, description: 'ID нового родительского документа (null для создания корневого документа)'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function moveNode(Request $request, $documentId)
     {
         try {
@@ -327,6 +668,16 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/stats',
+        summary: 'Получить статистику closure таблицы',
+        description: 'Возвращает статистику и метрики closure таблицы',
+        tags: ['Closures'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function stats()
     {
         try {
@@ -338,10 +689,33 @@ class ClosureController extends ApiController
         }
     }
 
-    /**
-     * Дополнительные методы API для расширенного функционала
-     */
-
+    #[OA\Get(
+        path: '/api/contents/closures/common-ancestors',
+        summary: 'Найти общих предков',
+        description: 'Находит общих предков для двух документов',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'document1_id',
+                description: 'ID первого документа',
+                in: 'query',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'document2_id',
+                description: 'ID второго документа',
+                in: 'query',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function commonAncestors(Request $request)
     {
         try {
@@ -364,6 +738,33 @@ class ClosureController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/closures/check-ancestry',
+        summary: 'Проверить отношение предок-потомок',
+        description: 'Проверяет, является ли один документ предком другого',
+        tags: ['Closures'],
+        parameters: [
+            new OA\Parameter(
+                name: 'potential_ancestor_id',
+                description: 'ID потенциального предка',
+                in: 'query',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'potential_descendant_id',
+                description: 'ID потенциального потомка',
+                in: 'query',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function checkAncestry(Request $request)
     {
         try {

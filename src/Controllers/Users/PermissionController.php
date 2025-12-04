@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Users\PermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Permissions',
+    description: 'Управление правами доступа и группами прав'
+)]
 class PermissionController extends ApiController
 {
     protected $permissionService;
@@ -16,6 +21,54 @@ class PermissionController extends ApiController
         $this->permissionService = $permissionService;
     }
 
+    #[OA\Get(
+        path: '/api/users/permissions/groups',
+        summary: 'Список групп прав',
+        description: 'Получить список групп прав доступа с пагинацией',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'lang_key'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию или языковому ключу',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_permissions_count',
+                description: 'Включить количество прав в группе (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupsIndex(Request $request)
     {
         try {
@@ -44,6 +97,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/permissions/groups/{id}',
+        summary: 'Получить группу прав',
+        description: 'Получить информацию о конкретной группе прав доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы прав',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupsShow($id)
     {
         try {
@@ -62,6 +135,27 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/permissions/groups',
+        summary: 'Создать группу прав',
+        description: 'Создать новую группу прав доступа',
+        tags: ['Permissions'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, description: 'Название группы'),
+                    new OA\Property(property: 'lang_key', type: 'string', maxLength: 255, description: 'Языковой ключ'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupsStore(Request $request)
     {
         try {
@@ -82,6 +176,36 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/permissions/groups/{id}',
+        summary: 'Обновить группу прав',
+        description: 'Обновить информацию о группе прав доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы прав',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, description: 'Название группы'),
+                    new OA\Property(property: 'lang_key', type: 'string', maxLength: 255, description: 'Языковой ключ'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupsUpdate(Request $request, $id)
     {
         try {
@@ -108,6 +232,27 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/permissions/groups/{id}',
+        summary: 'Удалить группу прав',
+        description: 'Удалить группу прав доступа. Группа должна быть пустой (без привязанных прав).',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы прав',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupsDestroy($id)
     {
         try {
@@ -120,6 +265,61 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/permissions',
+        summary: 'Список прав доступа',
+        description: 'Получить список прав доступа с пагинацией и фильтрацией',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'key', 'group_id'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию, ключу или языковому ключу',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'group_id',
+                description: 'Фильтр по ID группы прав',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'include_group',
+                description: 'Включить информацию о группе (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function permissionsIndex(Request $request)
     {
         try {
@@ -149,6 +349,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/permissions/{id}',
+        summary: 'Получить право доступа',
+        description: 'Получить информацию о конкретном праве доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function permissionsShow($id)
     {
         try {
@@ -167,6 +387,30 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/permissions',
+        summary: 'Создать право доступа',
+        description: 'Создать новое право доступа',
+        tags: ['Permissions'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'key', 'group_id'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, description: 'Название права'),
+                    new OA\Property(property: 'key', type: 'string', maxLength: 255, description: 'Ключ права'),
+                    new OA\Property(property: 'lang_key', type: 'string', maxLength: 255, description: 'Языковой ключ'),
+                    new OA\Property(property: 'group_id', type: 'integer', description: 'ID группы прав'),
+                    new OA\Property(property: 'disabled', type: 'boolean', description: 'Отключено ли право'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function permissionsStore(Request $request)
     {
         try {
@@ -190,6 +434,39 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/permissions/{id}',
+        summary: 'Обновить право доступа',
+        description: 'Обновить информацию о праве доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, description: 'Название права'),
+                    new OA\Property(property: 'key', type: 'string', maxLength: 255, description: 'Ключ права'),
+                    new OA\Property(property: 'lang_key', type: 'string', maxLength: 255, description: 'Языковой ключ'),
+                    new OA\Property(property: 'group_id', type: 'integer', description: 'ID группы прав'),
+                    new OA\Property(property: 'disabled', type: 'boolean', description: 'Отключено ли право'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function permissionsUpdate(Request $request, $id)
     {
         try {
@@ -219,6 +496,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/permissions/{id}',
+        summary: 'Удалить право доступа',
+        description: 'Удалить право доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function permissionsDestroy($id)
     {
         try {
@@ -231,6 +528,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/permissions/groups/{groupId}/permissions',
+        summary: 'Права группы',
+        description: 'Получить список всех прав доступа в конкретной группе',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'groupId',
+                description: 'ID группы прав',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groupPermissions($groupId)
     {
         try {
@@ -252,6 +569,36 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/permissions/{id}/move',
+        summary: 'Переместить право в другую группу',
+        description: 'Переместить право доступа в другую группу прав',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['group_id'],
+                properties: [
+                    new OA\Property(property: 'group_id', type: 'integer', description: 'ID целевой группы прав'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function movePermission(Request $request, $id)
     {
         try {
@@ -271,6 +618,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/permissions/{id}/enable',
+        summary: 'Включить право доступа',
+        description: 'Включить отключенное право доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function enablePermission($id)
     {
         try {
@@ -284,6 +651,26 @@ class PermissionController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/permissions/{id}/disable',
+        summary: 'Отключить право доступа',
+        description: 'Отключить право доступа',
+        tags: ['Permissions'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID права доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function disablePermission($id)
     {
         try {

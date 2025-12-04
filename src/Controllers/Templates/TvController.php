@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Templates\TvService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'TVs',
+    description: 'Управление TV параметрами Evolution CMS'
+)]
 class TvController extends ApiController
 {
     protected $tvService;
@@ -16,6 +21,89 @@ class TvController extends ApiController
         $this->tvService = $tvService;
     }
 
+    #[OA\Get(
+        path: '/api/templates/tvs',
+        summary: 'Получить список TV параметров',
+        description: 'Возвращает список TV параметров с пагинацией и фильтрацией',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'caption', 'rank', 'createdon', 'editedon'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию, caption или описанию',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'category',
+                description: 'ID категории для фильтрации',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'locked',
+                description: 'Фильтр по блокировке (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'type',
+                description: 'Фильтр по типу TV параметра',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_category',
+                description: 'Включить информацию о категории (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_templates_count',
+                description: 'Включить количество привязанных шаблонов (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_access_count',
+                description: 'Включить количество правил доступа (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -51,6 +139,26 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tvs/{id}',
+        summary: 'Получить информацию о TV параметре',
+        description: 'Возвращает детальную информацию о конкретном TV параметре',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -69,6 +177,55 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tvs',
+        summary: 'Создать новый TV параметр',
+        description: 'Создает новый TV параметр с указанными свойствами, шаблонами и доступом',
+        tags: ['TVs'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'caption', 'type'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'my_tv'),
+                    new OA\Property(property: 'caption', type: 'string', maxLength: 255, example: 'My TV Parameter'),
+                    new OA\Property(property: 'type', type: 'string', maxLength: 255, example: 'text'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Описание TV параметра'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 1),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'elements', type: 'string', nullable: true, example: 'Option 1==value1||Option 2==value2'),
+                    new OA\Property(property: 'rank', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'display', type: 'string', maxLength: 255, nullable: true, example: ''),
+                    new OA\Property(property: 'display_params', type: 'string', nullable: true, example: ''),
+                    new OA\Property(property: 'default_text', type: 'string', nullable: true, example: 'Default value'),
+                    new OA\Property(
+                        property: 'properties',
+                        type: 'object',
+                        nullable: true,
+                        additionalProperties: true
+                    ),
+                    new OA\Property(
+                        property: 'template_ids',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [1, 2, 3])
+                    ),
+                    new OA\Property(
+                        property: 'document_group_ids',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [1, 2])
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -104,6 +261,65 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/templates/tvs/{id}',
+        summary: 'Обновить информацию о TV параметре',
+        description: 'Обновляет информацию о существующем TV параметре',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'updated_tv'),
+                    new OA\Property(property: 'caption', type: 'string', maxLength: 255, nullable: true, example: 'Updated TV Parameter'),
+                    new OA\Property(property: 'type', type: 'string', maxLength: 255, nullable: true, example: 'textarea'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Обновленное описание'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 2),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'elements', type: 'string', nullable: true, example: 'New Option==new_value'),
+                    new OA\Property(property: 'rank', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'display', type: 'string', maxLength: 255, nullable: true, example: 'custom_display'),
+                    new OA\Property(property: 'display_params', type: 'string', nullable: true, example: 'params=value'),
+                    new OA\Property(property: 'default_text', type: 'string', nullable: true, example: 'Updated default'),
+                    new OA\Property(
+                        property: 'properties',
+                        type: 'object',
+                        nullable: true,
+                        additionalProperties: true
+                    ),
+                    new OA\Property(
+                        property: 'template_ids',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [4, 5, 6])
+                    ),
+                    new OA\Property(
+                        property: 'document_group_ids',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [3, 4])
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -145,6 +361,27 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tvs/{id}',
+        summary: 'Удалить TV параметр',
+        description: 'Удаляет указанный TV параметр',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -163,6 +400,26 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tvs/{id}/templates',
+        summary: 'Получить шаблоны TV параметра',
+        description: 'Возвращает список шаблонов, к которым привязан TV параметр',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function templates($id)
     {
         try {
@@ -185,6 +442,38 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tvs/{id}/templates',
+        summary: 'Добавить шаблон к TV параметру',
+        description: 'Привязывает TV параметр к шаблону с указанным рангом',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['template_id'],
+                properties: [
+                    new OA\Property(property: 'template_id', type: 'integer', example: 1),
+                    new OA\Property(property: 'rank', type: 'integer', minimum: 0, nullable: true, example: 0)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addTemplate(Request $request, $id)
     {
         try {
@@ -222,6 +511,33 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tvs/{id}/templates/{templateId}',
+        summary: 'Удалить шаблон из TV параметра',
+        description: 'Отвязывает TV параметр от шаблона',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'templateId',
+                description: 'ID шаблона',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeTemplate($id, $templateId)
     {
         try {
@@ -239,6 +555,26 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tvs/{id}/access',
+        summary: 'Получить доступ к TV параметру',
+        description: 'Возвращает правила доступа к TV параметру по группам документов',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function access($id)
     {
         try {
@@ -261,6 +597,37 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tvs/{id}/access',
+        summary: 'Добавить доступ к TV параметру',
+        description: 'Добавляет правило доступа для группы документов к TV параметру',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['document_group_id'],
+                properties: [
+                    new OA\Property(property: 'document_group_id', type: 'integer', example: 1)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addAccess(Request $request, $id)
     {
         try {
@@ -292,6 +659,33 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tvs/{id}/access/{accessId}',
+        summary: 'Удалить доступ из TV параметра',
+        description: 'Удаляет правило доступа к TV параметру',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'accessId',
+                description: 'ID правила доступа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeAccess($id, $accessId)
     {
         try {
@@ -309,6 +703,26 @@ class TvController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tvs/{id}/duplicate',
+        summary: 'Дублировать TV параметр',
+        description: 'Создает копию существующего TV параметра',
+        tags: ['TVs'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID TV параметра для копирования',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function duplicate($id)
     {
         try {

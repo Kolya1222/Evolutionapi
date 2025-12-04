@@ -55,8 +55,8 @@ Route::prefix('api')->group(function () {
             Route::get('/{id}', [CategoryController::class, 'show']);
             Route::put('/{id}', [CategoryController::class, 'update']);
             Route::delete('/{id}', [CategoryController::class, 'destroy']);
-            Route::get('/{id}/elements', [CategoryController::class, 'elements']);
-            Route::get('/{id}/elements/{type}', [CategoryController::class, 'elements']);
+            Route::get('/{id}/elements', [CategoryController::class, 'allElements']);
+            Route::get('/{id}/elements/{type}', [CategoryController::class, 'elementsByType']);
             Route::post('/{id}/move-elements', [CategoryController::class, 'moveElements']);
             Route::get('/elements/uncategorized/{type}', [CategoryController::class, 'uncategorizedElements']);
         });
@@ -112,7 +112,7 @@ Route::prefix('api')->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
             Route::get('/sessions', [AuthController::class, 'sessions']);
             Route::delete('/sessions/{id}', [AuthController::class, 'destroySession']);
-            Route::get('/active-locks', [AuthController::class, 'activeLocks']);
+            Route::get('/locks', [AuthController::class, 'activeLocks']);
         });
 
         Route::prefix('roles')->group(function () {
@@ -306,18 +306,18 @@ Route::prefix('api')->group(function () {
 
     Route::prefix('systems')->group(function () {
         Route::prefix('logs')->group(function () {
-            Route::get('/events', [LogController::class, 'eventLogs']);
-            Route::get('/events/stats', [LogController::class, 'eventLogStats']);
-            Route::post('/events', [LogController::class, 'createEventLog']);
-            Route::get('/events/{id}', [LogController::class, 'showEventLog']);
-            Route::delete('/events/{id}', [LogController::class, 'deleteEventLog']);
-            Route::delete('/events', [LogController::class, 'clearEventLogs']);
-            Route::get('/manager', [LogController::class, 'managerLogs']);
-            Route::get('/manager/stats', [LogController::class, 'managerLogStats']);
-            Route::post('/manager', [LogController::class, 'createManagerLog']);
-            Route::get('/manager/{id}', [LogController::class, 'showManagerLog']);
-            Route::delete('/manager/{id}', [LogController::class, 'deleteManagerLog']);
-            Route::delete('/manager', [LogController::class, 'clearManagerLogs']);
+            Route::get('/event-logs', [LogController::class, 'eventLogs']);
+            Route::get('/event-logs/stats', [LogController::class, 'eventLogStats']);
+            Route::post('/event-logs', [LogController::class, 'createEventLog']);
+            Route::get('/event-logs/{id}', [LogController::class, 'showEventLog']);
+            Route::delete('/event-logs/{id}', [LogController::class, 'deleteEventLog']);
+            Route::delete('/event-logs/clear', [LogController::class, 'clearEventLogs']);
+            Route::get('/manager-logs', [LogController::class, 'managerLogs']);
+            Route::get('/manager-logs/stats', [LogController::class, 'managerLogStats']);
+            Route::post('/manager-logs', [LogController::class, 'createManagerLog']);
+            Route::get('/manager-logs/{id}', [LogController::class, 'showManagerLog']);
+            Route::delete('/manager-logs/{id}', [LogController::class, 'deleteManagerLog']);
+            Route::delete('/manager-logs', [LogController::class, 'clearManagerLogs']);
         });
 
         Route::prefix('settings')->group(function () {

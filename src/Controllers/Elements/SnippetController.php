@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Elements\SnippetService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Snippets',
+    description: 'Управление сниппетами Evolution CMS'
+)]
 class SnippetController extends ApiController
 {
     protected $snippetService;
@@ -16,6 +21,96 @@ class SnippetController extends ApiController
         $this->snippetService = $snippetService;
     }
 
+    #[OA\Get(
+        path: '/api/elements/snippets',
+        summary: 'Получить список сниппетов',
+        description: 'Возвращает список сниппетов с пагинацией и фильтрацией',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'createdon', 'editedon'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию или описанию',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'category',
+                description: 'ID категории для фильтрации',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'locked',
+                description: 'Фильтр по блокировке (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'disabled',
+                description: 'Фильтр по отключению (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'cache_type',
+                description: 'Фильтр по типу кэширования (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'has_module',
+                description: 'Фильтр по наличию модуля (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_category',
+                description: 'Включить информацию о категории (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_module',
+                description: 'Включить информацию о модуле (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -51,6 +146,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/snippets/{id}',
+        summary: 'Получить информацию о сниппете',
+        description: 'Возвращает детальную информацию о конкретном сниппете',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -69,6 +184,35 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets',
+        summary: 'Создать новый сниппет',
+        description: 'Создает новый сниппет с указанными параметрами',
+        tags: ['Snippets'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'snippet'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'MySnippet'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Описание сниппета'),
+                    new OA\Property(property: 'snippet', type: 'string', example: '<?php echo "Hello Snippet"; ?>'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 1),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'cache_type', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'properties', type: 'string', nullable: true, example: 'key1=value1\nkey2=value2'),
+                    new OA\Property(property: 'module_guid', type: 'string', maxLength: 255, nullable: true, example: '')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -97,6 +241,44 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/snippets/{id}',
+        summary: 'Обновить информацию о сниппете',
+        description: 'Обновляет информацию о существующем сниппете',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'UpdatedSnippet'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Обновленное описание'),
+                    new OA\Property(property: 'snippet', type: 'string', nullable: true, example: '<?php echo "Updated Snippet"; ?>'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 2),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'cache_type', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'properties', type: 'string', nullable: true, example: 'newkey=newvalue'),
+                    new OA\Property(property: 'module_guid', type: 'string', maxLength: 255, nullable: true, example: '')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -131,6 +313,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/snippets/{id}',
+        summary: 'Удалить сниппет',
+        description: 'Удаляет указанный сниппет',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -149,6 +351,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/duplicate',
+        summary: 'Дублировать сниппет',
+        description: 'Создает копию существующего сниппета',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета для копирования',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function duplicate($id)
     {
         try {
@@ -167,6 +389,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/enable',
+        summary: 'Включить сниппет',
+        description: 'Включает отключенный сниппет',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function enable($id)
     {
         try {
@@ -185,6 +427,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/disable',
+        summary: 'Отключить сниппет',
+        description: 'Отключает сниппет',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function disable($id)
     {
         try {
@@ -203,6 +465,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/lock',
+        summary: 'Заблокировать сниппет',
+        description: 'Блокирует сниппет от редактирования',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function lock($id)
     {
         try {
@@ -221,6 +503,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/unlock',
+        summary: 'Разблокировать сниппет',
+        description: 'Разблокирует сниппет для редактирования',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function unlock($id)
     {
         try {
@@ -239,6 +541,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/snippets/{id}/content',
+        summary: 'Получить содержимое сниппета',
+        description: 'Возвращает только содержимое (код) сниппета',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function content($id)
     {
         try {
@@ -259,6 +581,36 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/snippets/{id}/content',
+        summary: 'Обновить содержимое сниппета',
+        description: 'Обновляет только содержимое (код) сниппета',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['content'],
+                properties: [
+                    new OA\Property(property: 'content', type: 'string', example: '<?php echo "New content"; ?>')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updateContent(Request $request, $id)
     {
         try {
@@ -287,6 +639,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/snippets/{id}/properties',
+        summary: 'Получить свойства сниппета',
+        description: 'Возвращает свойства сниппета в разобранном виде',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function properties($id)
     {
         try {
@@ -309,6 +681,36 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/snippets/{id}/properties',
+        summary: 'Обновить свойства сниппета',
+        description: 'Обновляет свойства сниппета в виде строки key=value',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['properties'],
+                properties: [
+                    new OA\Property(property: 'properties', type: 'string', example: 'key1=value1\nkey2=value2')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updateProperties(Request $request, $id)
     {
         try {
@@ -338,6 +740,36 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/execute',
+        summary: 'Выполнить сниппет',
+        description: 'Выполняет код сниппета с указанными параметрами и возвращает результат',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'param1', type: 'string', example: 'value1'),
+                    new OA\Property(property: 'param2', type: 'string', example: 'value2')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 423, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function execute($id, Request $request)
     {
         try {
@@ -365,6 +797,36 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/attach-module',
+        summary: 'Привязать модуль к сниппету',
+        description: 'Привязывает модуль к сниппету по GUID модуля',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['module_guid'],
+                properties: [
+                    new OA\Property(property: 'module_guid', type: 'string', maxLength: 255, example: '12345678-1234-1234-1234-123456789012')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function attachModule(Request $request, $id)
     {
         try {
@@ -389,6 +851,26 @@ class SnippetController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/snippets/{id}/detach-module',
+        summary: 'Отвязать модуль от сниппета',
+        description: 'Отвязывает модуль от сниппета',
+        tags: ['Snippets'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID сниппета',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function detachModule($id)
     {
         try {

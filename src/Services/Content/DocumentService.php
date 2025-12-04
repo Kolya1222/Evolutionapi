@@ -5,9 +5,11 @@ namespace roilafx\Evolutionapi\Services\Content;
 use roilafx\Evolutionapi\Services\BaseService;
 use EvolutionCMS\Models\SiteContent;
 use EvolutionCMS\Models\SiteTmplvar;
+use EvolutionCMS\Models\ClosureTable;
+use Illuminate\Support\Facades\DB;
 use Exception;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Artisan;
+
 
 class DocumentService extends BaseService
 {
@@ -48,22 +50,59 @@ class DocumentService extends BaseService
         ];
     }
 
-    /**
-     * Обновление дерева - используем встроенную логику модели
-     */
     public function updateTree(): array
     {
         $start = microtime(true);
 
-        Artisan::call('evolution:update-tree');
-        
-        $executionTime = round((microtime(true) - $start), 2);
-        
-        return [
-            'execution_time' => $executionTime,
-            'total_documents' => SiteContent::count(),
-            'message' => 'Tree structure updated successfully'
-        ];
+        try {
+            ClosureTable::truncate();
+            $documents = SiteContent::orderBy('parent', 'asc')
+                ->orderBy('menuindex', 'asc')
+                ->get();
+            
+            $processedCount = 0;
+            $closureRecordsCreated = 0;
+            
+            foreach ($documents as $document) {
+                DB::table('site_content_closure')->insert([
+                    'ancestor' => $document->id,
+                    'descendant' => $document->id,
+                    'depth' => 0
+                ]);
+                $closureRecordsCreated++;
+                
+                if ($document->parent > 0) {
+                    $ancestors = DB::table('site_content_closure')
+                        ->where('descendant', $document->parent)
+                        ->get();
+                    
+                    foreach ($ancestors as $ancestor) {
+                        DB::table('site_content_closure')->insert([
+                            'ancestor' => $ancestor->ancestor,
+                            'descendant' => $document->id,
+                            'depth' => $ancestor->depth + 1
+                        ]);
+                        $closureRecordsCreated++;
+                    }
+                }
+                
+                $processedCount++;
+            }
+            
+            $executionTime = round((microtime(true) - $start), 2);
+            $totalClosureRecords = DB::table('site_content_closure')->count();
+            
+            return [
+                'execution_time' => $executionTime,
+                'processed_documents' => $processedCount,
+                'total_documents' => SiteContent::count(),
+                'closure_records_created' => $totalClosureRecords,
+                'message' => 'Tree structure updated successfully'
+            ];
+            
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
 
     /**

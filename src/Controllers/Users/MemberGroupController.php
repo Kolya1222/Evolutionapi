@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Users\MemberGroupService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Member Groups',
+    description: 'Управление группами пользователей (ролями) Evolution CMS'
+)]
 class MemberGroupController extends ApiController
 {
     protected $memberGroupService;
@@ -16,6 +21,61 @@ class MemberGroupController extends ApiController
         $this->memberGroupService = $memberGroupService;
     }
 
+    #[OA\Get(
+        path: '/api/users/member-groups',
+        summary: 'Получить список групп пользователей',
+        description: 'Возвращает список групп пользователей с пагинацией и фильтрацией',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию группы',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_users_count',
+                description: 'Включить количество пользователей в группе (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_document_groups_count',
+                description: 'Включить количество групп документов с доступом (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -46,6 +106,26 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/member-groups/{id}',
+        summary: 'Получить информацию о группе пользователей',
+        description: 'Возвращает детальную информацию о конкретной группе пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -64,6 +144,38 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/member-groups',
+        summary: 'Создать новую группу пользователей',
+        description: 'Создает новую группу пользователей с указанными параметрами, пользователями и доступом к группам документов',
+        tags: ['Member Groups'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'Editors'),
+                    new OA\Property(
+                        property: 'users',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [1, 2, 3])
+                    ),
+                    new OA\Property(
+                        property: 'document_groups',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [1, 2])
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -87,6 +199,47 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/member-groups/{id}',
+        summary: 'Обновить информацию о группе пользователей',
+        description: 'Обновляет информацию о существующей группе пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'Senior Editors'),
+                    new OA\Property(
+                        property: 'users',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [1, 4, 5])
+                    ),
+                    new OA\Property(
+                        property: 'document_groups',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(type: 'integer', example: [3, 4])
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -116,6 +269,26 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/member-groups/{id}',
+        summary: 'Удалить группу пользователей',
+        description: 'Удаляет указанную группу пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -134,6 +307,26 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/member-groups/{id}/users',
+        summary: 'Получить пользователей группы',
+        description: 'Возвращает список пользователей, входящих в указанную группу',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function users($id)
     {
         try {
@@ -155,6 +348,37 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/member-groups/{id}/users',
+        summary: 'Добавить пользователя в группу',
+        description: 'Добавляет пользователя в указанную группу',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['user_id'],
+                properties: [
+                    new OA\Property(property: 'user_id', type: 'integer', example: 1)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addUser(Request $request, $id)
     {
         try {
@@ -177,6 +401,33 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/member-groups/{id}/users/{userId}',
+        summary: 'Удалить пользователя из группы',
+        description: 'Удаляет пользователя из указанной группы',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'userId',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeUser($id, $userId)
     {
         try {
@@ -189,6 +440,26 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/member-groups/{id}/document-groups',
+        summary: 'Получить доступ к группам документов',
+        description: 'Возвращает список групп документов, к которым имеет доступ указанная группа пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function documentGroups($id)
     {
         try {
@@ -210,6 +481,37 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/member-groups/{id}/document-groups',
+        summary: 'Добавить доступ к группе документов',
+        description: 'Добавляет доступ к группе документов для указанной группы пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['document_group_id'],
+                properties: [
+                    new OA\Property(property: 'document_group_id', type: 'integer', example: 1)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addDocumentGroup(Request $request, $id)
     {
         try {
@@ -232,6 +534,33 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/member-groups/{id}/document-groups/{docGroupId}',
+        summary: 'Удалить доступ к группе документов',
+        description: 'Удаляет доступ к группе документов у указанной группы пользователей',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'docGroupId',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeDocumentGroup($id, $docGroupId)
     {
         try {
@@ -244,6 +573,26 @@ class MemberGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/member-groups/user/{userId}/groups',
+        summary: 'Получить группы пользователя',
+        description: 'Возвращает список групп, в которые входит указанный пользователь',
+        tags: ['Member Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'userId',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function userGroups($userId)
     {
         try {

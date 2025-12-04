@@ -7,7 +7,12 @@ use EvolutionCMS\Models\SiteContent;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use roilafx\Evolutionapi\Services\Content\DocumentService;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Documents', 
+    description: 'Управление документами Evolution CMS'
+)]
 class DocumentController extends ApiController
 {
     private $documentService;
@@ -17,6 +22,113 @@ class DocumentController extends ApiController
         $this->documentService = $documentService;
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents',
+        summary: 'Получить список документов',
+        description: 'Возвращает список документов с фильтрацией и пагинацией',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'parent',
+                description: 'Фильтр по родительскому документу',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'template',
+                description: 'Фильтр по шаблону',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'published',
+                description: 'Фильтр по статусу публикации',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'deleted',
+                description: 'Фильтр по удаленным документам',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'include_tv',
+                description: 'Включить TV-параметры в ответ',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по заголовку документа',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['menuindex', 'createdon', 'editedon', 'pagetitle'], default: 'menuindex')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'isfolder',
+                description: 'Фильтр по документам-папкам',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'content_type',
+                description: 'Фильтр по типу контента',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string')
+            ),
+            new OA\Parameter(
+                name: 'group_id',
+                description: 'Фильтр по группе документов',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'tv',
+                description: 'Фильтр по TV-параметрам',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(
+                    type: 'object',
+                    additionalProperties: new OA\AdditionalProperties(type: 'string')
+                )
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -61,6 +173,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}',
+        summary: 'Получить документ по ID',
+        description: 'Возвращает информацию о документе',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -81,6 +213,60 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents',
+        summary: 'Создать новый документ',
+        description: 'Создает новый документ в Evolution CMS',
+        tags: ['Documents'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['pagetitle', 'parent', 'template'],
+                properties: [
+                    new OA\Property(property: 'pagetitle', type: 'string', maxLength: 255, example: 'Новый документ', description: 'Заголовок документа'),
+                    new OA\Property(property: 'parent', type: 'integer', minimum: 0, example: 0, description: 'ID родительского документа'),
+                    new OA\Property(property: 'template', type: 'integer', minimum: 0, example: 1, description: 'ID шаблона'),
+                    new OA\Property(property: 'content', type: 'string', example: 'Содержимое документа'),
+                    new OA\Property(property: 'alias', type: 'string', maxLength: 255, example: 'novyj-dokument', description: 'Псевдоним (URL)'),
+                    new OA\Property(property: 'menuindex', type: 'integer', example: 0, description: 'Позиция в меню'),
+                    new OA\Property(property: 'published', type: 'boolean', example: true, description: 'Опубликован'),
+                    new OA\Property(property: 'isfolder', type: 'boolean', example: false, description: 'Является папкой'),
+                    new OA\Property(property: 'type', type: 'string', enum: ['document', 'reference'], example: 'document', description: 'Тип документа'),
+                    new OA\Property(property: 'contentType', type: 'string', example: 'text/html', description: 'Тип контента'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 255, example: 'Описание документа'),
+                    new OA\Property(property: 'longtitle', type: 'string', maxLength: 255, example: 'Длинный заголовок'),
+                    new OA\Property(property: 'introtext', type: 'string', example: 'Вступительный текст'),
+                    new OA\Property(property: 'richtext', type: 'boolean', example: true, description: 'Использовать визуальный редактор'),
+                    new OA\Property(property: 'searchable', type: 'boolean', example: true, description: 'Доступен для поиска'),
+                    new OA\Property(property: 'cacheable', type: 'boolean', example: true, description: 'Кэшируемый'),
+                    new OA\Property(property: 'hidemenu', type: 'boolean', example: false, description: 'Скрыть в меню'),
+                    new OA\Property(
+                        property: 'tv',
+                        type: 'object',
+                        additionalProperties: new OA\AdditionalProperties(oneOf: [
+                            new OA\Schema(type: 'string'),
+                            new OA\Schema(type: 'array', items: new OA\Items(type: 'string')),
+                            new OA\Schema(type: 'number'),
+                            new OA\Schema(type: 'boolean'),
+                        ]),
+                        description: 'TV-параметры документа'
+                    ),
+                    new OA\Property(
+                        property: 'document_groups',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2],
+                        description: 'Группы документов'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -124,6 +310,67 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/documents/{id}',
+        summary: 'Обновить документ',
+        description: 'Обновляет информацию о документе',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'pagetitle', type: 'string', maxLength: 255, example: 'Обновленный документ'),
+                    new OA\Property(property: 'parent', type: 'integer', minimum: 0, example: 0),
+                    new OA\Property(property: 'template', type: 'integer', minimum: 0, example: 1),
+                    new OA\Property(property: 'content', type: 'string'),
+                    new OA\Property(property: 'alias', type: 'string', maxLength: 255, example: 'obnovlennyj-dokument'),
+                    new OA\Property(property: 'menuindex', type: 'integer', example: 1),
+                    new OA\Property(property: 'published', type: 'boolean', example: true),
+                    new OA\Property(property: 'isfolder', type: 'boolean', example: false),
+                    new OA\Property(property: 'type', type: 'string', enum: ['document', 'reference']),
+                    new OA\Property(property: 'contentType', type: 'string'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 255),
+                    new OA\Property(property: 'longtitle', type: 'string', maxLength: 255),
+                    new OA\Property(property: 'introtext', type: 'string'),
+                    new OA\Property(property: 'richtext', type: 'boolean', example: true),
+                    new OA\Property(property: 'searchable', type: 'boolean', example: true),
+                    new OA\Property(property: 'cacheable', type: 'boolean', example: true),
+                    new OA\Property(property: 'hidemenu', type: 'boolean', example: false),
+                    new OA\Property(
+                        property: 'tv',
+                        type: 'object',
+                        additionalProperties: new OA\AdditionalProperties(oneOf: [
+                            new OA\Schema(type: 'string'),
+                            new OA\Schema(type: 'array', items: new OA\Items(type: 'string')),
+                            new OA\Schema(type: 'number'),
+                            new OA\Schema(type: 'boolean'),
+                        ])
+                    ),
+                    new OA\Property(
+                        property: 'document_groups',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2]
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -168,6 +415,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/documents/{id}',
+        summary: 'Удалить документ',
+        description: 'Удаляет документ (soft delete)',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -178,6 +445,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/documents/{id}/restore',
+        summary: 'Восстановить удаленный документ',
+        description: 'Восстанавливает мягко удаленный документ',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID удаленного документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function restore($id)
     {
         try {
@@ -188,6 +475,16 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents/publish-all',
+        summary: 'Опубликовать все документы',
+        description: 'Публикует все документы, которые должны быть опубликованы по расписанию',
+        tags: ['Documents'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function publishAll()
     {
         try {
@@ -198,6 +495,16 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents/unpublish-all',
+        summary: 'Снять с публикации все документы',
+        description: 'Снимает с публикации все документы, которые должны быть сняты по расписанию',
+        tags: ['Documents'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function unpublishAll()
     {
         try {
@@ -208,6 +515,16 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents/update-tree',
+        summary: 'Обновить дерево документов',
+        description: 'Обновляет структуру дерева документов',
+        tags: ['Documents'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function updateTree()
     {
         try {
@@ -218,6 +535,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/children',
+        summary: 'Получить дочерние документы',
+        description: 'Возвращает дочерние документы указанного документа',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID родительского документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function children($id)
     {
         try {
@@ -234,6 +571,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/siblings',
+        summary: 'Получить соседние документы',
+        description: 'Возвращает документы с тем же родителем (братья и сестры)',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function siblings($id)
     {
         try {
@@ -254,6 +611,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/ancestors',
+        summary: 'Получить предков документа',
+        description: 'Возвращает всех предков документа вверх по дереву',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function ancestors($id)
     {
         try {
@@ -270,6 +647,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/descendants',
+        summary: 'Получить потомков документа',
+        description: 'Возвращает всех потомков документа вниз по дереву',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function descendants($id)
     {
         try {
@@ -286,6 +683,36 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/tree',
+        summary: 'Получить дерево документов (корневое)',
+        description: 'Возвращает дерево документов, начиная с корневого уровня',
+        tags: ['Documents'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    #[OA\Get(
+        path: '/api/contents/documents/tree/{id}',
+        summary: 'Получить дерево документов от указанного узла',
+        description: 'Возвращает дерево документов, начиная с указанного документа',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID корневого документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function tree($id = null)
     {
         try {
@@ -324,6 +751,36 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/documents/{id}/move',
+        summary: 'Переместить документ',
+        description: 'Перемещает документ в другое место в дереве',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID перемещаемого документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['new_parent'],
+                properties: [
+                    new OA\Property(property: 'new_parent', type: 'integer', minimum: 0, example: 1, description: 'ID нового родительского документа'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function move(Request $request, $id)
     {
         try {
@@ -342,6 +799,26 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/groups',
+        summary: 'Получить группы документа',
+        description: 'Возвращает группы, к которым принадлежит документ',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groups($id)
     {
         try {
@@ -370,6 +847,7 @@ class DocumentController extends ApiController
         }
     }
 
+
     protected function getGroupType($group)
     {
         if ($group->private_memgroup && $group->private_webgroup) {
@@ -383,6 +861,42 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents/{id}/groups',
+        summary: 'Добавить документ в группы',
+        description: 'Добавляет документ в указанные группы',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['group_ids'],
+                properties: [
+                    new OA\Property(
+                        property: 'group_ids',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2],
+                        description: 'ID групп для добавления'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function attachToGroups(Request $request, $id)
     {
         try {
@@ -402,6 +916,33 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/documents/{id}/groups/{groupId}',
+        summary: 'Удалить документ из группы',
+        description: 'Удаляет документ из указанной группы',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'groupId',
+                description: 'ID группы',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function detachFromGroup($id, $groupId)
     {
         try {
@@ -420,6 +961,42 @@ class DocumentController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/documents/{id}/sync-groups',
+        summary: 'Синхронизировать группы документа',
+        description: 'Полностью заменяет группы документа на указанные',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['group_ids'],
+                properties: [
+                    new OA\Property(
+                        property: 'group_ids',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2],
+                        description: 'ID групп для синхронизации'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function syncGroups(Request $request, $id)
     {
         try {
@@ -439,9 +1016,26 @@ class DocumentController extends ApiController
         }
     }
 
-    /**
-     * Получение TV параметров документа
-     */
+    #[OA\Get(
+        path: '/api/contents/documents/{id}/tv',
+        summary: 'Получить TV-параметры документа',
+        description: 'Возвращает все TV-параметры документа',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function getTV($id)
     {
         try {
@@ -458,9 +1052,47 @@ class DocumentController extends ApiController
         }
     }
 
-    /**
-     * Обновление TV параметров документа
-     */
+    #[OA\Put(
+        path: '/api/contents/documents/{id}/tv',
+        summary: 'Обновить TV-параметры документа',
+        description: 'Обновляет TV-параметры документа',
+        tags: ['Documents'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['tv'],
+                properties: [
+                    new OA\Property(
+                        property: 'tv',
+                        type: 'object',
+                        additionalProperties: new OA\AdditionalProperties(oneOf: [
+                            new OA\Schema(type: 'string'),
+                            new OA\Schema(type: 'array', items: new OA\Items(type: 'string')),
+                            new OA\Schema(type: 'number'),
+                            new OA\Schema(type: 'boolean'),
+                        ]),
+                        example: ['"price": "100"', '"color": "red"'],
+                        description: 'TV-параметры для обновления'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function updateTV(Request $request, $id)
     {
         try {

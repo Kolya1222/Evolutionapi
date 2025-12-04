@@ -7,7 +7,12 @@ use EvolutionCMS\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use roilafx\Evolutionapi\Services\Content\CategoryService;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Categories', 
+    description: 'Управление категориями элементов (шаблоны, чанки, сниппеты, плагины, модули, TV)'
+)]
 class CategoryController extends ApiController
 {
     private $categoryService;
@@ -17,6 +22,69 @@ class CategoryController extends ApiController
         $this->categoryService = $categoryService;
     }
 
+    #[OA\Get(
+        path: '/api/contents/categories',
+        summary: 'Получить список категорий',
+        description: 'Возвращает список всех категорий с пагинацией, сортировкой и фильтрацией',
+        tags: ['Categories'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки: id, category, rank',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'category', 'rank'], default: 'rank')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки: asc, desc',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию категории',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_counts',
+                description: 'Включить количество элементов в категории',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(
+                    type: 'string', 
+                    enum: ['true', 'false', '1', '0'],
+                    default: 'false'
+                )
+            ),
+            new OA\Parameter(
+                name: 'include_elements',
+                description: 'Включить список элементов в категории',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(
+                    type: 'string', 
+                    enum: ['true', 'false', '1', '0'],
+                    default: 'false'
+                )
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -25,29 +93,26 @@ class CategoryController extends ApiController
                 'sort_by' => 'nullable|string|in:id,category,rank',
                 'sort_order' => 'nullable|string|in:asc,desc',
                 'search' => 'nullable|string|max:255',
-                'include_counts' => 'nullable|boolean',
-                'include_elements' => 'nullable|boolean',
+                'include_counts' => 'nullable|string|in:true,false,1,0',
+                'include_elements' => 'nullable|string|in:true,false,1,0',
             ]);
 
             $query = Category::query();
 
-            // Поиск по названию категории - как в Evolution CMS
             if ($request->has('search')) {
                 $searchTerm = $validated['search'];
                 $query->where('category', 'LIKE', "%{$searchTerm}%");
             }
 
-            // Сортировка как в Evolution CMS - по умолчанию rank ASC, category ASC
             $sortBy = $validated['sort_by'] ?? 'rank';
             $sortOrder = $validated['sort_order'] ?? 'asc';
             $query->orderBy($sortBy, $sortOrder);
 
-            // Пагинация
             $perPage = $validated['per_page'] ?? 20;
             $paginator = $query->paginate($perPage);
             
-            $includeCounts = $request->get('include_counts', false);
-            $includeElements = $request->get('include_elements', false);
+            $includeCounts = in_array($validated['include_counts'] ?? 'false', ['true', '1']);
+            $includeElements = in_array($validated['include_elements'] ?? 'false', ['true', '1']);
             
             $formattedItems = collect($paginator->items())->map(function($category) use ($includeCounts, $includeElements) {
                 return $this->formatCategory($category, $includeCounts, $includeElements);
@@ -62,6 +127,26 @@ class CategoryController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/categories/{id}',
+        summary: 'Получить категорию по ID',
+        description: 'Возвращает информацию о категории',
+        tags: ['Categories'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -80,6 +165,28 @@ class CategoryController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/categories',
+        summary: 'Создать новую категорию',
+        description: 'Создает новую категорию',
+        tags: ['Categories'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['category'],
+                properties: [
+                    new OA\Property(property: 'category', type: 'string', maxLength: 45, example: 'Шаблоны'),
+                    new OA\Property(property: 'rank', type: 'integer', minimum: 0, example: 0),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -89,8 +196,10 @@ class CategoryController extends ApiController
             ]);
 
             $category = $this->categoryService->createCategory($validated);
+
+            $formatted = $this->formatCategory($category);
             
-            return $this->created($this->formatCategory($category), 'Category created successfully');
+            return $this->created($formatted, 'Category created successfully');
 
         } catch (ValidationException $e) {
             return $this->validationError($e);
@@ -99,6 +208,37 @@ class CategoryController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/categories/{id}',
+        summary: 'Обновить категорию',
+        description: 'Обновляет информацию о категории',
+        tags: ['Categories'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 1)
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'category', type: 'string', maxLength: 45, example: 'Обновленное название'),
+                    new OA\Property(property: 'rank', type: 'integer', minimum: 0, example: 1),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -124,6 +264,28 @@ class CategoryController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/categories/{id}',
+        summary: 'Удалить категорию',
+        description: 'Удаляет категорию. Категорию можно удалить только если в ней нет элементов',
+        tags: ['Categories'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 1)
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -136,7 +298,188 @@ class CategoryController extends ApiController
         }
     }
 
-    public function elements($id, $type = null)
+    #[OA\Get(
+        path: '/api/contents/categories/{id}/elements',
+        summary: 'Получить все элементы категории',
+        description: 'Возвращает все элементы всех типов, принадлежащие категории',
+        tags: ['Categories'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 1)
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    public function allElements($id)
+    {
+        return $this->elements($id, null);
+    }
+
+    #[OA\Get(
+        path: '/api/contents/categories/{id}/elements/{type}',
+        summary: 'Получить элементы определенного типа в категории',
+        description: 'Возвращает элементы определенного типа, принадлежащие категории',
+        tags: ['Categories'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 1)
+            ),
+            new OA\Parameter(
+                name: 'type',
+                description: 'Тип элементов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', enum: ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs'])
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    public function elementsByType($id, $type)
+    {
+        return $this->elements($id, $type);
+    }
+
+    #[OA\Get(
+        path: '/api/contents/elements/uncategorized/{type}',
+        summary: 'Получить элементы без категории',
+        description: 'Возвращает элементы указанного типа, которые не принадлежат ни одной категории',
+        tags: ['Categories'],
+        parameters: [
+            new OA\Parameter(
+                name: 'type',
+                description: 'Тип элементов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string', enum: ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs'])
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    public function uncategorizedElements($type)
+    {
+        try {
+            $validTypes = ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs'];
+            
+            if (!in_array($type, $validTypes)) {
+                return $this->error('Invalid element type', [
+                    'available_types' => $validTypes
+                ], 422);
+            }
+
+            $elements = $this->categoryService->getElementsNotInCategory($type);
+            
+            return $this->success($elements, 'Uncategorized ' . $type . ' retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to fetch uncategorized elements');
+        }
+    }
+
+    #[OA\Post(
+        path: '/api/contents/categories/{id}/move-elements',
+        summary: 'Переместить элементы в другую категорию',
+        description: 'Перемещает элементы из текущей категории в другую',
+        tags: ['Categories'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID исходной категории',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 1)
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['target_category_id', 'element_types'],
+                properties: [
+                    new OA\Property(property: 'target_category_id', type: 'integer', example: 2),
+                    new OA\Property(
+                        property: 'element_types',
+                        type: 'array',
+                        items: new OA\Items(type: 'string', enum: ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs']),
+                        example: ['templates', 'chunks']
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    public function moveElements(Request $request, $id)
+    {
+        try {
+            $validated = $this->validateRequest($request, [
+                'target_category_id' => 'required|integer|exists:categories,id',
+                'element_types' => 'required|array',
+                'element_types.*' => 'string|in:templates,chunks,snippets,plugins,modules,tvs',
+            ]);
+
+            $result = $this->categoryService->moveElements(
+                $id, 
+                $validated['target_category_id'], 
+                $validated['element_types']
+            );
+
+            return $this->success($result, 'Elements moved successfully');
+
+        } catch (ValidationException $e) {
+            return $this->validationError($e);
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to move elements');
+        }
+    }
+
+    #[OA\Get(
+        path: '/api/contents/categories/stats',
+        summary: 'Статистика по категориям',
+        description: 'Возвращает статистику по всем категориям',
+        tags: ['Categories'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
+    public function stats()
+    {
+        try {
+            $stats = $this->categoryService->getCategoriesStats();
+            
+            return $this->success($stats, 'Categories statistics retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->exceptionError($e, 'Failed to fetch categories statistics');
+        }
+    }
+
+    protected function elements($id, $type = null)
     {
         try {
             $category = Category::find($id);
@@ -234,62 +577,6 @@ class CategoryController extends ApiController
 
         } catch (\Exception $e) {
             return $this->exceptionError($e, 'Failed to fetch category elements');
-        }
-    }
-
-    public function moveElements(Request $request, $id)
-    {
-        try {
-            $validated = $this->validateRequest($request, [
-                'target_category_id' => 'required|integer|exists:categories,id',
-                'element_types' => 'required|array',
-                'element_types.*' => 'string|in:templates,chunks,snippets,plugins,modules,tvs',
-            ]);
-
-            $result = $this->categoryService->moveElements(
-                $id, 
-                $validated['target_category_id'], 
-                $validated['element_types']
-            );
-
-            return $this->success($result, 'Elements moved successfully');
-
-        } catch (ValidationException $e) {
-            return $this->validationError($e);
-        } catch (\Exception $e) {
-            return $this->exceptionError($e, 'Failed to move elements');
-        }
-    }
-
-    public function stats()
-    {
-        try {
-            $stats = $this->categoryService->getCategoriesStats();
-            
-            return $this->success($stats, 'Categories statistics retrieved successfully');
-
-        } catch (\Exception $e) {
-            return $this->exceptionError($e, 'Failed to fetch categories statistics');
-        }
-    }
-
-    public function uncategorizedElements($type)
-    {
-        try {
-            $validTypes = ['templates', 'chunks', 'snippets', 'plugins', 'modules', 'tvs'];
-            
-            if (!in_array($type, $validTypes)) {
-                return $this->error('Invalid element type', [
-                    'available_types' => $validTypes
-                ], 422);
-            }
-
-            $elements = $this->categoryService->getElementsNotInCategory($type);
-            
-            return $this->success($elements, 'Uncategorized ' . $type . ' retrieved successfully');
-
-        } catch (\Exception $e) {
-            return $this->exceptionError($e, 'Failed to fetch uncategorized elements');
         }
     }
 

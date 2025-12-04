@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Users\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Users',
+    description: 'Управление пользователями системы'
+)]
 class UserController extends ApiController
 {
     protected $userService;
@@ -16,6 +21,89 @@ class UserController extends ApiController
         $this->userService = $userService;
     }
 
+    #[OA\Get(
+        path: '/api/users/users',
+        summary: 'Список пользователей',
+        description: 'Получить список пользователей с пагинацией и фильтрацией',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'username', 'createdon', 'editedon'], default: 'id')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по username',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_attributes',
+                description: 'Включить атрибуты пользователя (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_settings',
+                description: 'Включить настройки пользователя (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_groups',
+                description: 'Включить группы пользователя (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'blocked',
+                description: 'Фильтр по статусу блокировки (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'verified',
+                description: 'Фильтр по статусу верификации (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'role',
+                description: 'Фильтр по ID роли',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -51,6 +139,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/users/{id}',
+        summary: 'Получить пользователя',
+        description: 'Получить полную информацию о пользователе',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -69,6 +177,63 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/users/users',
+        summary: 'Создать пользователя',
+        description: 'Создать нового пользователя с полным набором данных',
+        tags: ['Users'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['username', 'password', 'email', 'fullname'],
+                properties: [
+                    new OA\Property(property: 'username', type: 'string', maxLength: 255, description: 'Логин пользователя'),
+                    new OA\Property(property: 'password', type: 'string', minLength: 6, description: 'Пароль'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', description: 'Email пользователя'),
+                    new OA\Property(property: 'fullname', type: 'string', maxLength: 255, description: 'Полное имя'),
+                    new OA\Property(property: 'role', type: 'integer', minimum: 0, description: 'ID роли'),
+                    new OA\Property(property: 'blocked', type: 'boolean', description: 'Заблокирован ли пользователь'),
+                    new OA\Property(property: 'verified', type: 'boolean', description: 'Верифицирован ли email'),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 20, description: 'Телефон'),
+                    new OA\Property(property: 'mobilephone', type: 'string', maxLength: 20, description: 'Мобильный телефон'),
+                    new OA\Property(
+                        property: 'settings', 
+                        type: 'object', 
+                        description: 'Настройки пользователя (ключ-значение)',
+                        additionalProperties: new OA\AdditionalProperties(type: 'string')
+                    ),
+                    new OA\Property(
+                        property: 'user_groups', 
+                        type: 'array', 
+                        description: 'Список ID групп пользователя',
+                        items: new OA\Items(type: 'integer')
+                    ),
+                    new OA\Property(
+                        property: 'tv_values', 
+                        type: 'object', 
+                        description: 'TV значения пользователя (имя TV - значение)',
+                        additionalProperties: new OA\AdditionalProperties(type: 'string')
+                    ),
+                    // Дополнительные поля атрибутов
+                    new OA\Property(property: 'dob', type: 'string', description: 'Дата рождения (timestamp)'),
+                    new OA\Property(property: 'gender', type: 'integer', description: 'Пол (0-не указан, 1-мужской, 2-женский)'),
+                    new OA\Property(property: 'country', type: 'string', description: 'Страна'),
+                    new OA\Property(property: 'street', type: 'string', description: 'Улица'),
+                    new OA\Property(property: 'city', type: 'string', description: 'Город'),
+                    new OA\Property(property: 'state', type: 'string', description: 'Штат/Область'),
+                    new OA\Property(property: 'zip', type: 'string', description: 'Почтовый индекс'),
+                    new OA\Property(property: 'fax', type: 'string', description: 'Факс'),
+                    new OA\Property(property: 'photo', type: 'string', description: 'Фото (URL или путь)'),
+                    new OA\Property(property: 'comment', type: 'string', description: 'Комментарий'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -100,6 +265,72 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/users/{id}',
+        summary: 'Обновить пользователя',
+        description: 'Обновить информацию о пользователе',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'username', type: 'string', maxLength: 255, description: 'Логин пользователя'),
+                    new OA\Property(property: 'password', type: 'string', minLength: 6, description: 'Пароль'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', description: 'Email пользователя'),
+                    new OA\Property(property: 'fullname', type: 'string', maxLength: 255, description: 'Полное имя'),
+                    new OA\Property(property: 'role', type: 'integer', minimum: 0, description: 'ID роли'),
+                    new OA\Property(property: 'blocked', type: 'boolean', description: 'Заблокирован ли пользователь'),
+                    new OA\Property(property: 'verified', type: 'boolean', description: 'Верифицирован ли email'),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 20, description: 'Телефон'),
+                    new OA\Property(property: 'mobilephone', type: 'string', maxLength: 20, description: 'Мобильный телефон'),
+                    new OA\Property(
+                        property: 'settings', 
+                        type: 'object', 
+                        description: 'Настройки пользователя (полная замена)',
+                        additionalProperties: new OA\AdditionalProperties(type: 'string')
+                    ),
+                    new OA\Property(
+                        property: 'user_groups', 
+                        type: 'array', 
+                        description: 'Список ID групп пользователя (полная замена)',
+                        items: new OA\Items(type: 'integer')
+                    ),
+                    new OA\Property(
+                        property: 'tv_values', 
+                        type: 'object', 
+                        description: 'TV значения пользователя (имя TV - значение)',
+                        additionalProperties: new OA\AdditionalProperties(type: 'string')
+                    ),
+                    // Дополнительные поля атрибутов
+                    new OA\Property(property: 'dob', type: 'string', description: 'Дата рождения (timestamp)'),
+                    new OA\Property(property: 'gender', type: 'integer', description: 'Пол (0-не указан, 1-мужской, 2-женский)'),
+                    new OA\Property(property: 'country', type: 'string', description: 'Страна'),
+                    new OA\Property(property: 'street', type: 'string', description: 'Улица'),
+                    new OA\Property(property: 'city', type: 'string', description: 'Город'),
+                    new OA\Property(property: 'state', type: 'string', description: 'Штат/Область'),
+                    new OA\Property(property: 'zip', type: 'string', description: 'Почтовый индекс'),
+                    new OA\Property(property: 'fax', type: 'string', description: 'Факс'),
+                    new OA\Property(property: 'photo', type: 'string', description: 'Фото (URL или путь)'),
+                    new OA\Property(property: 'comment', type: 'string', description: 'Комментарий'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -137,6 +368,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/users/users/{id}',
+        summary: 'Удалить пользователя',
+        description: 'Удалить пользователя из системы',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -149,6 +400,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/users/{id}/block',
+        summary: 'Заблокировать пользователя',
+        description: 'Заблокировать доступ пользователя к системе',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function block($id)
     {
         try {
@@ -162,6 +433,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/users/users/{id}/unblock',
+        summary: 'Разблокировать пользователя',
+        description: 'Разблокировать доступ пользователя к системе',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function unblock($id)
     {
         try {
@@ -175,6 +466,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/users/{id}/settings',
+        summary: 'Настройки пользователя',
+        description: 'Получить настройки конкретного пользователя',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function settings($id)
     {
         try {
@@ -195,6 +506,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/users/{id}/groups',
+        summary: 'Группы пользователя',
+        description: 'Получить список групп, в которых состоит пользователь',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function groups($id)
     {
         try {
@@ -218,6 +549,26 @@ class UserController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/users/users/{id}/tv-values',
+        summary: 'TV значения пользователя',
+        description: 'Получить TV значения конкретного пользователя',
+        tags: ['Users'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID пользователя',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function tvValues($id)
     {
         try {

@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Elements\ChunkService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Сhunks',
+    description: 'Управление элементами - чанками'
+)]
 class ChunkController extends ApiController
 {
     protected $chunkService;
@@ -16,6 +21,82 @@ class ChunkController extends ApiController
         $this->chunkService = $chunkService;
     }
 
+    #[OA\Get(
+        path: '/api/elements/chunks',
+        summary: 'Получить список чанков',
+        description: 'Возвращает список чанков с пагинацией и фильтрацией',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'createdon', 'editedon'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию или описанию',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'category',
+                description: 'ID категории для фильтрации',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'locked',
+                description: 'Фильтр по блокировке (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'disabled',
+                description: 'Фильтр по отключению (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'cache_type',
+                description: 'Фильтр по типу кэширования (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_category',
+                description: 'Включить информацию о категории (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -48,6 +129,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/chunks/{id}',
+        summary: 'Получить информацию о чанке',
+        description: 'Возвращает детальную информацию о конкретном чанке',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -66,6 +167,34 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks',
+        summary: 'Создать новый чанк',
+        description: 'Создает новый чанк с указанными параметрами',
+        tags: ['Сhunks'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'snippet'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'MyChunk'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Описание чанка'),
+                    new OA\Property(property: 'snippet', type: 'string', example: '[[+param1]] [[+param2]]'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 1),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'editor_name', type: 'string', maxLength: 255, nullable: true, example: ''),
+                    new OA\Property(property: 'cache_type', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -93,6 +222,43 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/chunks/{id}',
+        summary: 'Обновить информацию о чанке',
+        description: 'Обновляет информацию о существующем чанке',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'UpdatedChunk'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Обновленное описание'),
+                    new OA\Property(property: 'snippet', type: 'string', nullable: true, example: '[[+updated_param]]'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 2),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'editor_name', type: 'string', maxLength: 255, nullable: true, example: 'Ace'),
+                    new OA\Property(property: 'cache_type', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -126,6 +292,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/chunks/{id}',
+        summary: 'Удалить чанк',
+        description: 'Удаляет указанный чанк',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -144,6 +330,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/duplicate',
+        summary: 'Дублировать чанк',
+        description: 'Создает копию существующего чанка',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка для копирования',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function duplicate($id)
     {
         try {
@@ -162,6 +368,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/enable',
+        summary: 'Включить чанк',
+        description: 'Включает отключенный чанк',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function enable($id)
     {
         try {
@@ -180,6 +406,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/disable',
+        summary: 'Отключить чанк',
+        description: 'Отключает чанк',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function disable($id)
     {
         try {
@@ -198,6 +444,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/lock',
+        summary: 'Заблокировать чанк',
+        description: 'Блокирует чанк от редактирования',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function lock($id)
     {
         try {
@@ -216,6 +482,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/unlock',
+        summary: 'Разблокировать чанк',
+        description: 'Разблокирует чанк для редактирования',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function unlock($id)
     {
         try {
@@ -234,6 +520,26 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/chunks/{id}/content',
+        summary: 'Получить содержимое чанка',
+        description: 'Возвращает только содержимое (код) чанка',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function content($id)
     {
         try {
@@ -253,6 +559,36 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/chunks/{id}/content',
+        summary: 'Обновить содержимое чанка',
+        description: 'Обновляет только содержимое (код) чанка',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['content'],
+                properties: [
+                    new OA\Property(property: 'content', type: 'string', example: '[[+new_param]] New content')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updateContent(Request $request, $id)
     {
         try {
@@ -280,6 +616,36 @@ class ChunkController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/chunks/{id}/execute',
+        summary: 'Выполнить чанк',
+        description: 'Выполняет код чанка с указанными параметрами и возвращает результат',
+        tags: ['Сhunks'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID чанка',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'param1', type: 'string', example: 'value1'),
+                    new OA\Property(property: 'param2', type: 'string', example: 'value2')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 423, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function execute($id, Request $request)
     {
         try {

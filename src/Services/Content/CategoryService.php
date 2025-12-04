@@ -20,12 +20,6 @@ class CategoryService extends BaseService
      */
     public function createCategory(array $data): Category
     {
-        // Проверка уникальности как в Legacy/Categories.php строка 197
-        $existing = Category::where('category', $data['category'])->first();
-        if ($existing) {
-            throw new Exception('Category with this name already exists');
-        }
-
         $categoryData = [
             'category' => $data['category'],
             'rank' => $data['rank'] ?? 0,

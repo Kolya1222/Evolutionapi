@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Elements\ModuleService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Modules',
+    description: 'Управление модулями Evolution CMS'
+)]
 class ModuleController extends ApiController
 {
     protected $moduleService;
@@ -16,6 +21,103 @@ class ModuleController extends ApiController
         $this->moduleService = $moduleService;
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules',
+        summary: 'Получить список модулей',
+        description: 'Возвращает список модулей с пагинацией и фильтрацией',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'createdon', 'editedon'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию или описанию',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'category',
+                description: 'ID категории для фильтрации',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'locked',
+                description: 'Фильтр по блокировке (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'disabled',
+                description: 'Фильтр по отключению (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'enable_resource',
+                description: 'Фильтр по включению ресурса (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'enable_sharedparams',
+                description: 'Фильтр по shared params (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_category',
+                description: 'Включить информацию о категории (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_access',
+                description: 'Включить информацию о группах доступа (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_dependencies',
+                description: 'Включить информацию о зависимостях (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -53,6 +155,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules/{id}',
+        summary: 'Получить информацию о модуле',
+        description: 'Возвращает детальную информацию о конкретном модуле',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -71,6 +193,57 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules',
+        summary: 'Создать новый модуль',
+        description: 'Создает новый модуль с указанными параметрами',
+        tags: ['Modules'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'modulecode'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'MyModule'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Описание модуля'),
+                    new OA\Property(property: 'modulecode', type: 'string', example: '<?php echo "Hello World"; ?>'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 1),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'wrap', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'icon', type: 'string', maxLength: 255, nullable: true, example: 'fa-cube'),
+                    new OA\Property(property: 'enable_resource', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'resourcefile', type: 'string', maxLength: 255, nullable: true, example: ''),
+                    new OA\Property(property: 'guid', type: 'string', maxLength: 255, nullable: true, example: ''),
+                    new OA\Property(property: 'enable_sharedparams', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'properties', type: 'string', nullable: true, example: 'key1=value1\nkey2=value2'),
+                    new OA\Property(
+                        property: 'access_groups', 
+                        type: 'array', 
+                        nullable: true, 
+                        items: new OA\Items(type: 'integer', example: 1)
+                    ),
+                    new OA\Property(
+                        property: 'dependencies',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'resource', type: 'integer', example: 1),
+                                new OA\Property(property: 'type', type: 'integer', minimum: 0, example: 0)
+                            ]
+                        )
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -108,6 +281,66 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/modules/{id}',
+        summary: 'Обновить информацию о модуле',
+        description: 'Обновляет информацию о существующем модуле',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'UpdatedModule'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Обновленное описание'),
+                    new OA\Property(property: 'modulecode', type: 'string', nullable: true, example: '<?php echo "Updated"; ?>'),
+                    new OA\Property(property: 'category', type: 'integer', nullable: true, example: 2),
+                    new OA\Property(property: 'editor_type', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'wrap', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'locked', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'disabled', type: 'boolean', nullable: true, example: false),
+                    new OA\Property(property: 'icon', type: 'string', maxLength: 255, nullable: true, example: 'fa-gear'),
+                    new OA\Property(property: 'enable_resource', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'resourcefile', type: 'string', maxLength: 255, nullable: true, example: 'resource.php'),
+                    new OA\Property(property: 'guid', type: 'string', maxLength: 255, nullable: true, example: '12345678-1234-1234-1234-123456789012'),
+                    new OA\Property(property: 'enable_sharedparams', type: 'boolean', nullable: true, example: true),
+                    new OA\Property(property: 'properties', type: 'string', nullable: true, example: 'newkey=newvalue'),
+                    new OA\Property(
+                        property: 'access_groups', 
+                        type: 'array', 
+                        nullable: true, 
+                        items: new OA\Items(type: 'integer', example: [1, 2])
+                    ),
+                    new OA\Property(
+                        property: 'dependencies',
+                        type: 'array',
+                        nullable: true,
+                        items: new OA\Items(
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'resource', type: 'integer', example: 2),
+                                new OA\Property(property: 'type', type: 'integer', minimum: 0, example: 1)
+                            ]
+                        )
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -151,6 +384,27 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/modules/{id}',
+        summary: 'Удалить модуль',
+        description: 'Удаляет указанный модуль',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -169,6 +423,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/duplicate',
+        summary: 'Дублировать модуль',
+        description: 'Создает копию существующего модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля для копирования',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function duplicate($id)
     {
         try {
@@ -187,6 +461,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/enable',
+        summary: 'Включить модуль',
+        description: 'Включает отключенный модуль',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function enable($id)
     {
         try {
@@ -205,6 +499,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/disable',
+        summary: 'Отключить модуль',
+        description: 'Отключает модуль',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function disable($id)
     {
         try {
@@ -223,6 +537,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/lock',
+        summary: 'Заблокировать модуль',
+        description: 'Блокирует модуль от редактирования',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function lock($id)
     {
         try {
@@ -241,6 +575,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/unlock',
+        summary: 'Разблокировать модуль',
+        description: 'Разблокирует модуль для редактирования',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function unlock($id)
     {
         try {
@@ -259,6 +613,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules/{id}/content',
+        summary: 'Получить содержимое модуля',
+        description: 'Возвращает только содержимое (код) модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function content($id)
     {
         try {
@@ -278,6 +652,37 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/modules/{id}/content',
+        summary: 'Обновить содержимое модуля',
+        description: 'Обновляет только содержимое (код) модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['content'],
+                properties: [
+                    new OA\Property(property: 'content', type: 'string', example: '<?php echo "New content"; ?>')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updateContent(Request $request, $id)
     {
         try {
@@ -305,6 +710,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules/{id}/properties',
+        summary: 'Получить свойства модуля',
+        description: 'Возвращает свойства модуля в разобранном виде',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function properties($id)
     {
         try {
@@ -327,6 +752,37 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/modules/{id}/properties',
+        summary: 'Обновить свойства модуля',
+        description: 'Обновляет свойства модуля в виде строки key=value',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['properties'],
+                properties: [
+                    new OA\Property(property: 'properties', type: 'string', example: 'key1=value1\nkey2=value2')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updateProperties(Request $request, $id)
     {
         try {
@@ -356,6 +812,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules/{id}/access',
+        summary: 'Получить группы доступа модуля',
+        description: 'Возвращает список групп пользователей с доступом к модулю',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function access($id)
     {
         try {
@@ -378,6 +854,37 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/access',
+        summary: 'Добавить группу доступа к модулю',
+        description: 'Добавляет группу пользователей к списку доступа модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['usergroup'],
+                properties: [
+                    new OA\Property(property: 'usergroup', type: 'integer', example: 1)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addAccess(Request $request, $id)
     {
         try {
@@ -405,6 +912,33 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/modules/{id}/access/{usergroupId}',
+        summary: 'Удалить группу доступа из модуля',
+        description: 'Удаляет группу пользователей из списка доступа модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'usergroupId',
+                description: 'ID группы пользователей',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeAccess($id, $usergroupId)
     {
         try {
@@ -422,6 +956,26 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/modules/{id}/dependencies',
+        summary: 'Получить зависимости модуля',
+        description: 'Возвращает список ресурсных зависимостей модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function dependencies($id)
     {
         try {
@@ -444,6 +998,38 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/dependencies',
+        summary: 'Добавить зависимость к модулю',
+        description: 'Добавляет ресурсную зависимость к модулю',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['resource', 'type'],
+                properties: [
+                    new OA\Property(property: 'resource', type: 'integer', example: 1),
+                    new OA\Property(property: 'type', type: 'integer', minimum: 0, example: 0)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addDependency(Request $request, $id)
     {
         try {
@@ -472,6 +1058,33 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/modules/{id}/dependencies/{dependencyId}',
+        summary: 'Удалить зависимость из модуля',
+        description: 'Удаляет ресурсную зависимость из модуля',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'dependencyId',
+                description: 'ID зависимости',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removeDependency($id, $dependencyId)
     {
         try {
@@ -489,6 +1102,27 @@ class ModuleController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/modules/{id}/execute',
+        summary: 'Выполнить модуль',
+        description: 'Выполняет код модуля и возвращает результат',
+        tags: ['Modules'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID модуля',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function execute($id)
     {
         try {

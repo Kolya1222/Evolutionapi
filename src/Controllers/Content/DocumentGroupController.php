@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Content\DocumentGroupService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Document Groups', 
+    description: 'Управление группами документов'
+)]
 class DocumentGroupController extends ApiController
 {
     protected $documentGroupService;
@@ -16,6 +21,61 @@ class DocumentGroupController extends ApiController
         $this->documentGroupService = $documentGroupService;
     }
 
+    #[OA\Get(
+        path: '/api/contents/document-groups',
+        summary: 'Получить список групп документов',
+        description: 'Возвращает список групп документов с фильтрацией и пагинацией',
+        tags: ['Document Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию группы',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_counts',
+                description: 'Включить количество документов в группе',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'], default: 'false')
+            ),
+            new OA\Parameter(
+                name: 'type',
+                description: 'Фильтр по типу группы',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['all', 'web', 'manager', 'mixed', 'public'])
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -45,6 +105,26 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/document-groups/{id}',
+        summary: 'Получить группу документов по ID',
+        description: 'Возвращает информацию о группе документов',
+        tags: ['Document Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -63,6 +143,29 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/document-groups',
+        summary: 'Создать новую группу документов',
+        description: 'Создает новую группу документов',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 245, example: 'Администраторы', description: 'Название группы'),
+                    new OA\Property(property: 'private_memgroup', type: 'boolean', example: true, description: 'Группа для менеджера'),
+                    new OA\Property(property: 'private_webgroup', type: 'boolean', example: false, description: 'Группа для веб-пользователей'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -93,6 +196,38 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/contents/document-groups/{id}',
+        summary: 'Обновить группу документов',
+        description: 'Обновляет информацию о группе документов',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 245, example: 'Обновленное название'),
+                    new OA\Property(property: 'private_memgroup', type: 'boolean', example: true),
+                    new OA\Property(property: 'private_webgroup', type: 'boolean', example: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -138,6 +273,28 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/document-groups/{id}',
+        summary: 'Удалить группу документов',
+        description: 'Удаляет группу документов. Группу можно удалить только если в ней нет документов.',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -163,6 +320,26 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/contents/document-groups/{id}/documents',
+        summary: 'Получить документы в группе',
+        description: 'Возвращает все документы, принадлежащие указанной группе',
+        tags: ['Document Groups'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function documents($id)
     {
         try {
@@ -188,6 +365,43 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/document-groups/{id}/documents',
+        summary: 'Добавить документы в группу',
+        description: 'Добавляет документы в указанную группу',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['document_ids'],
+                properties: [
+                    new OA\Property(
+                        property: 'document_ids',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2, 3],
+                        description: 'ID документов для добавления'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function attachDocuments(Request $request, $id)
     {
         try {
@@ -226,6 +440,34 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/contents/document-groups/{id}/documents/{documentId}',
+        summary: 'Удалить документ из группы',
+        description: 'Удаляет документ из указанной группы',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function detachDocument($id, $documentId)
     {
         try {
@@ -252,6 +494,43 @@ class DocumentGroupController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/contents/document-groups/{id}/sync-documents',
+        summary: 'Синхронизировать документы в группе',
+        description: 'Полностью заменяет документы в группе на указанные',
+        tags: ['Document Groups'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID группы документов',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['document_ids'],
+                properties: [
+                    new OA\Property(
+                        property: 'document_ids',
+                        type: 'array',
+                        items: new OA\Items(type: 'integer'),
+                        example: [1, 2, 3],
+                        description: 'ID документов для синхронизации'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500'),
+        ]
+    )]
     public function syncDocuments(Request $request, $id)
     {
         try {

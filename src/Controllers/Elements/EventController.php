@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Elements\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'Events',
+    description: 'Управление системными событиями и их плагинами'
+)]
 class EventController extends ApiController
 {
     protected $eventService;
@@ -16,6 +21,75 @@ class EventController extends ApiController
         $this->eventService = $eventService;
     }
 
+    #[OA\Get(
+        path: '/api/elements/events',
+        summary: 'Получить список событий',
+        description: 'Возвращает список системных событий с пагинацией и фильтрацией',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'sort_by',
+                description: 'Поле для сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['id', 'name', 'service', 'groupname'], default: 'name')
+            ),
+            new OA\Parameter(
+                name: 'sort_order',
+                description: 'Порядок сортировки',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'], default: 'asc')
+            ),
+            new OA\Parameter(
+                name: 'search',
+                description: 'Поиск по названию или группе',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'service',
+                description: 'Фильтр по номеру сервиса',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 0)
+            ),
+            new OA\Parameter(
+                name: 'groupname',
+                description: 'Фильтр по названию группы',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'include_plugins',
+                description: 'Включить информацию о плагинах (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_plugins_count',
+                description: 'Включить количество плагинов (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -48,6 +122,26 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/{id}',
+        summary: 'Получить информацию о событии',
+        description: 'Возвращает детальную информацию о конкретном событии',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -66,6 +160,28 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/events',
+        summary: 'Создать новое событие',
+        description: 'Создает новое системное событие',
+        tags: ['Events'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'OnMyCustomEvent'),
+                    new OA\Property(property: 'service', type: 'integer', minimum: 0, nullable: true, example: 0),
+                    new OA\Property(property: 'groupname', type: 'string', maxLength: 255, nullable: true, example: 'CustomEvents')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -87,6 +203,37 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/events/{id}',
+        summary: 'Обновить информацию о событии',
+        description: 'Обновляет информацию о существующем событии',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true, example: 'UpdatedEventName'),
+                    new OA\Property(property: 'service', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'groupname', type: 'string', maxLength: 255, nullable: true, example: 'UpdatedGroup')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -114,6 +261,27 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/events/{id}',
+        summary: 'Удалить событие',
+        description: 'Удаляет указанное событие (только если к нему не привязаны плагины)',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -132,6 +300,26 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/{id}/plugins',
+        summary: 'Получить плагины события',
+        description: 'Возвращает список плагинов, привязанных к указанному событию',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function plugins($id)
     {
         try {
@@ -160,6 +348,38 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/elements/events/{id}/plugins',
+        summary: 'Добавить плагин к событию',
+        description: 'Привязывает плагин к событию с указанным приоритетом',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['plugin_id'],
+                properties: [
+                    new OA\Property(property: 'plugin_id', type: 'integer', example: 1),
+                    new OA\Property(property: 'priority', type: 'integer', minimum: 0, nullable: true, example: 0)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function addPlugin(Request $request, $id)
     {
         try {
@@ -197,6 +417,33 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/elements/events/{id}/plugins/{pluginId}',
+        summary: 'Удалить плагин из события',
+        description: 'Отвязывает плагин от события',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'pluginId',
+                description: 'ID плагина',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function removePlugin($id, $pluginId)
     {
         try {
@@ -214,6 +461,43 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/elements/events/{id}/plugins/{pluginId}/priority',
+        summary: 'Обновить приоритет плагина',
+        description: 'Изменяет приоритет выполнения плагина в событии',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID события',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'pluginId',
+                description: 'ID плагина',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['priority'],
+                properties: [
+                    new OA\Property(property: 'priority', type: 'integer', minimum: 0, example: 10)
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function updatePluginPriority(Request $request, $id, $pluginId)
     {
         try {
@@ -245,6 +529,16 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/groups',
+        summary: 'Получить список групп событий',
+        description: 'Возвращает уникальные названия групп событий',
+        tags: ['Events'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function groups()
     {
         try {
@@ -260,6 +554,26 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/by-group/{groupName}',
+        summary: 'Получить события по группе',
+        description: 'Возвращает все события, принадлежащие указанной группе',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'groupName',
+                description: 'Название группы событий',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function byGroup($groupName)
     {
         try {
@@ -280,6 +594,16 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/services',
+        summary: 'Получить список сервисов событий',
+        description: 'Возвращает уникальные номера сервисов событий',
+        tags: ['Events'],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function services()
     {
         try {
@@ -295,6 +619,26 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/by-service/{service}',
+        summary: 'Получить события по сервису',
+        description: 'Возвращает все события, принадлежащие указанному сервису',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'service',
+                description: 'Номер сервиса событий',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function byService($service)
     {
         try {
@@ -315,6 +659,33 @@ class EventController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/elements/events/search',
+        summary: 'Поиск событий',
+        description: 'Поиск событий по названию или группе',
+        tags: ['Events'],
+        parameters: [
+            new OA\Parameter(
+                name: 'query',
+                description: 'Строка поиска (мин. 2 символа)',
+                in: 'query',
+                required: true,
+                schema: new OA\Schema(type: 'string', minLength: 2, maxLength: 255)
+            ),
+            new OA\Parameter(
+                name: 'limit',
+                description: 'Максимальное количество результатов (1-50)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 50, default: 10)
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function search(Request $request)
     {
         try {

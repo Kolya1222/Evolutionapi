@@ -6,7 +6,12 @@ use roilafx\Evolutionapi\Controllers\ApiController;
 use roilafx\Evolutionapi\Services\Templates\TvValueService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
+#[OA\Tag(
+    name: 'TV Values',
+    description: 'Управление значениями TV параметров документов'
+)]
 class TvValueController extends ApiController
 {
     protected $tvValueService;
@@ -16,6 +21,54 @@ class TvValueController extends ApiController
         $this->tvValueService = $tvValueService;
     }
 
+    #[OA\Get(
+        path: '/api/templates/tv-values',
+        summary: 'Получить значения TV параметров',
+        description: 'Возвращает список значений TV параметров с пагинацией и фильтрацией',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'per_page',
+                description: 'Количество элементов на странице (1-100)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)
+            ),
+            new OA\Parameter(
+                name: 'content_id',
+                description: 'Фильтр по ID документа',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'tmplvar_id',
+                description: 'Фильтр по ID TV параметра',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'include_resource',
+                description: 'Включить информацию о документе (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            ),
+            new OA\Parameter(
+                name: 'include_tmplvar',
+                description: 'Включить информацию о TV параметре (true/false/1/0)',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['true', 'false', '1', '0'])
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function index(Request $request)
     {
         try {
@@ -45,6 +98,26 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tv-values/{id}',
+        summary: 'Получить информацию о значении TV параметра',
+        description: 'Возвращает детальную информацию о конкретном значении TV параметра',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID значения TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function show($id)
     {
         try {
@@ -63,6 +136,29 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tv-values',
+        summary: 'Создать новое значение TV параметра',
+        description: 'Создает новое значение TV параметра для документа',
+        tags: ['TV Values'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['tmplvarid', 'contentid', 'value'],
+                properties: [
+                    new OA\Property(property: 'tmplvarid', type: 'integer', example: 1),
+                    new OA\Property(property: 'contentid', type: 'integer', example: 1),
+                    new OA\Property(property: 'value', type: 'string', example: 'Значение TV параметра')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, ref: '#/components/responses/201'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 409, ref: '#/components/responses/409'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function store(Request $request)
     {
         try {
@@ -84,6 +180,36 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Put(
+        path: '/api/templates/tv-values/{id}',
+        summary: 'Обновить значение TV параметра',
+        description: 'Обновляет значение существующего TV параметра документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID значения TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['value'],
+                properties: [
+                    new OA\Property(property: 'value', type: 'string', example: 'Обновленное значение')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function update(Request $request, $id)
     {
         try {
@@ -109,6 +235,26 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tv-values/{id}',
+        summary: 'Удалить значение TV параметра',
+        description: 'Удаляет значение TV параметра документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'id',
+                description: 'ID значения TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function destroy($id)
     {
         try {
@@ -127,6 +273,26 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tv-values/document/{documentId}',
+        summary: 'Получить значения TV параметров документа',
+        description: 'Возвращает все значения TV параметров для указанного документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function byDocument($documentId)
     {
         try {
@@ -148,6 +314,26 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Get(
+        path: '/api/templates/tv-values/tmplvar/{tmplvarId}',
+        summary: 'Получить значения TV параметра для всех документов',
+        description: 'Возвращает все значения указанного TV параметра для всех документов',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'tmplvarId',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function byTmplvar($tmplvarId)
     {
         try {
@@ -170,6 +356,37 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tv-values/document/{documentId}/set',
+        summary: 'Установить значение TV параметра для документа',
+        description: 'Создает или обновляет значение TV параметра для указанного документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['tmplvarid', 'value'],
+                properties: [
+                    new OA\Property(property: 'tmplvarid', type: 'integer', example: 1),
+                    new OA\Property(property: 'value', type: 'string', example: 'Новое значение')
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function setDocumentTvValue(Request $request, $documentId)
     {
         try {
@@ -195,6 +412,46 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Post(
+        path: '/api/templates/tv-values/document/{documentId}/set-multiple',
+        summary: 'Установить несколько значений TV параметров для документа',
+        description: 'Создает или обновляет несколько значений TV параметров для документа одновременно',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['tv_values'],
+                properties: [
+                    new OA\Property(
+                        property: 'tv_values',
+                        type: 'array',
+                        items: new OA\Items(
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'tmplvarid', type: 'integer', example: 1),
+                                new OA\Property(property: 'value', type: 'string', example: 'Значение 1')
+                            ]
+                        )
+                    )
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 422, ref: '#/components/responses/422'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function setMultipleDocumentTvValues(Request $request, $documentId)
     {
         try {
@@ -223,6 +480,33 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tv-values/document/{documentId}/tv/{tmplvarId}',
+        summary: 'Удалить значение TV параметра у документа',
+        description: 'Удаляет значение указанного TV параметра у документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            ),
+            new OA\Parameter(
+                name: 'tmplvarId',
+                description: 'ID TV параметра',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function deleteDocumentTvValue($documentId, $tmplvarId)
     {
         try {
@@ -235,6 +519,26 @@ class TvValueController extends ApiController
         }
     }
 
+    #[OA\Delete(
+        path: '/api/templates/tv-values/document/{documentId}/clear',
+        summary: 'Очистить все значения TV параметров у документа',
+        description: 'Удаляет все значения TV параметров у указанного документа',
+        tags: ['TV Values'],
+        parameters: [
+            new OA\Parameter(
+                name: 'documentId',
+                description: 'ID документа',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
+        responses: [
+            new OA\Response(response: 200, ref: '#/components/responses/200'),
+            new OA\Response(response: 404, ref: '#/components/responses/404'),
+            new OA\Response(response: 500, ref: '#/components/responses/500')
+        ]
+    )]
     public function clearDocumentTvValues($documentId)
     {
         try {

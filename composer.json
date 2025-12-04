@@ -13,7 +13,6 @@
       "providers": [
         "roilafx\\Evolutionapi\\EvolutionapiServiceProvider"
       ]
-
     }
   }
 }
