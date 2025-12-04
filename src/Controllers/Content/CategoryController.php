@@ -170,7 +170,6 @@ class CategoryController extends ApiController
         summary: 'Создать новую категорию',
         description: 'Создает новую категорию',
         tags: ['Categories'],
-        security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -213,7 +212,6 @@ class CategoryController extends ApiController
         summary: 'Обновить категорию',
         description: 'Обновляет информацию о категории',
         tags: ['Categories'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -269,7 +267,6 @@ class CategoryController extends ApiController
         summary: 'Удалить категорию',
         description: 'Удаляет категорию. Категорию можно удалить только если в ней нет элементов',
         tags: ['Categories'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -401,7 +398,6 @@ class CategoryController extends ApiController
         summary: 'Переместить элементы в другую категорию',
         description: 'Перемещает элементы из текущей категории в другую',
         tags: ['Categories'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',

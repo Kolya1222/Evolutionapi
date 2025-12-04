@@ -148,7 +148,6 @@ class DocumentGroupController extends ApiController
         summary: 'Создать новую группу документов',
         description: 'Создает новую группу документов',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -201,7 +200,6 @@ class DocumentGroupController extends ApiController
         summary: 'Обновить группу документов',
         description: 'Обновляет информацию о группе документов',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -278,7 +276,6 @@ class DocumentGroupController extends ApiController
         summary: 'Удалить группу документов',
         description: 'Удаляет группу документов. Группу можно удалить только если в ней нет документов.',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -370,7 +367,6 @@ class DocumentGroupController extends ApiController
         summary: 'Добавить документы в группу',
         description: 'Добавляет документы в указанную группу',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -445,7 +441,6 @@ class DocumentGroupController extends ApiController
         summary: 'Удалить документ из группы',
         description: 'Удаляет документ из указанной группы',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -499,7 +494,6 @@ class DocumentGroupController extends ApiController
         summary: 'Синхронизировать документы в группе',
         description: 'Полностью заменяет документы в группе на указанные',
         tags: ['Document Groups'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',

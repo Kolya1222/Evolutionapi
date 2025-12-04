@@ -75,7 +75,6 @@ class AuthController extends ApiController
         summary: 'Выход пользователя',
         description: 'Завершение текущей сессии пользователя',
         tags: ['Authentication'],
-        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(response: 200, ref: '#/components/responses/200'),
             new OA\Response(response: 401, ref: '#/components/responses/401'),
@@ -144,7 +143,6 @@ class AuthController extends ApiController
         summary: 'Информация о текущем пользователе',
         description: 'Возвращает информацию о текущем аутентифицированном пользователе',
         tags: ['Authentication'],
-        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(response: 200, ref: '#/components/responses/200'),
             new OA\Response(response: 401, ref: '#/components/responses/401'),
@@ -174,7 +172,6 @@ class AuthController extends ApiController
         summary: 'Активные сессии пользователя',
         description: 'Возвращает список активных сессий текущего пользователя',
         tags: ['Authentication'],
-        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(response: 200, ref: '#/components/responses/200'),
             new OA\Response(response: 401, ref: '#/components/responses/401'),
@@ -210,7 +207,6 @@ class AuthController extends ApiController
         summary: 'Завершить сессию',
         description: 'Завершает указанную сессию пользователя (кроме текущей)',
         tags: ['Authentication'],
-        security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -252,7 +248,6 @@ class AuthController extends ApiController
         summary: 'Активные блокировки пользователя',
         description: 'Возвращает список активных блокировок элементов текущим пользователем',
         tags: ['Authentication'],
-        security: [['bearerAuth' => []]],
         responses: [
             new OA\Response(response: 200, ref: '#/components/responses/200'),
             new OA\Response(response: 401, ref: '#/components/responses/401'),
